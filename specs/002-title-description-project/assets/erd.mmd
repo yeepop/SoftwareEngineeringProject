@@ -1,0 +1,91 @@
+erDiagram
+    USER {
+        string id PK
+        string username
+        string email
+        string passwordHash
+        string role
+        boolean verifiedEmail
+        datetime createdAt
+        datetime updatedAt
+    }
+
+    SHELTER {
+        string id PK
+        string name
+        json contactInfo
+        datetime createdAt
+        datetime updatedAt
+    }
+
+    ANIMAL {
+        string id PK
+        string ownerId FK
+        string shelterId FK
+        string name
+        string species
+        string breed
+        string sex
+        int ageMonths
+        string description
+        string status
+        json location
+        datetime createdAt
+        datetime updatedAt
+        datetime deletedAt
+    }
+
+    IMAGE {
+        string id PK
+        string ownerType
+        string ownerId
+        string url
+        string altText
+        datetime createdAt
+    }
+
+    APPLICATION {
+        string id PK
+        string type
+        string animalId FK
+        string applicantId FK
+        json answers
+        string status
+        datetime submittedAt
+        datetime reviewedAt
+    }
+
+    MEDICAL_RECORD {
+        string id PK
+        string animalId FK
+        string recordType
+        date date
+        string provider
+        string details
+        json attachments
+        boolean verified
+        string verifiedBy FK
+        string createdBy FK
+        datetime createdAt
+    }
+
+    AUDIT_LOG {
+        string id PK
+        string actorId FK
+        string action
+        string targetType
+        string targetId
+        json before
+        json after
+        datetime timestamp
+    }
+
+    USER ||--o{ ANIMAL : owns
+    SHELTER ||--o{ ANIMAL : houses
+    ANIMAL ||--o{ IMAGE : has
+    ANIMAL ||--o{ APPLICATION : has
+    USER ||--o{ APPLICATION : applies
+    ANIMAL ||--o{ MEDICAL_RECORD : has
+    USER ||--o{ MEDICAL_RECORD : creates
+    USER ||--o{ AUDIT_LOG : performs
+    ANIMAL ||--o{ IMAGE : "attachments"
