@@ -1,0 +1,104 @@
+@startuml
+' Entities
+entity "User" as U {
+  * id : UUID
+  --
+  username
+  email
+  password_hash
+  role
+  verified_email
+  created_at
+  updated_at
+}
+
+entity "Shelter" as S {
+  * id : UUID
+  --
+  name
+  contact_info
+  created_at
+  updated_at
+}
+
+entity "Animal" as A {
+  * id : UUID
+  --
+  owner_id
+  shelter_id
+  name
+  species
+  breed
+  sex
+  age_months
+  description
+  status
+  location
+  created_at
+  updated_at
+  deleted_at
+}
+
+entity "Image" as I {
+  * id : UUID
+  --
+  owner_type
+  owner_id
+  url
+  alt_text
+  created_at
+}
+
+entity "Application" as App {
+  * id : UUID
+  --
+  type
+  animal_id
+  applicant_id
+  answers
+  status
+  submitted_at
+  reviewed_at
+}
+
+entity "MedicalRecord" as MR {
+  * id : UUID
+  --
+  animal_id
+  record_type
+  date
+  provider
+  details
+  attachments
+  verified
+  verified_by
+  created_by
+  created_at
+}
+
+entity "AuditLog" as AL {
+  * id : UUID
+  --
+  actor_id
+  action
+  target_type
+  target_id
+  before
+  after
+  timestamp
+}
+
+' Relationships
+U ||--o{ A : owns
+S ||--o{ A : houses
+A ||--o{ I : has
+A ||--o{ App : has
+U ||--o{ App : applies
+A ||--o{ MR : has
+U ||--o{ MR : creates
+U ||--o{ AL : performs
+
+' Composite/attachment relationship
+A ||--o{ I : attachments
+
+@enduml
