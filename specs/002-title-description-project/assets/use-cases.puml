@@ -17,7 +17,7 @@ package "Public" {
 package "User Actions" {
   (Register / Login)
   (Submit Application)
-  (In-app Messaging)
+  (Notification)  ' In-app messaging deferred; notifications via email/SMS in MVP
   (Receive Notifications)
 }
 
@@ -41,7 +41,7 @@ Member --> (Register / Login)
 Member --> (Browse Listings)
 Member --> (View Listing Details)
 Member --> (Submit Application)
-Member --> (In-app Messaging)
+Member --> (Notification)
 Member --> (Receive Notifications)
 
 Owner --> (Create Listing)

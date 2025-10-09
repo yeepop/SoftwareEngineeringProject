@@ -101,7 +101,7 @@
 - api_5xx_total
 - api_4xx_total
 - upload_failure_total{reason}
-- notification_failure_total{channel} // email/in-app/sms
+- notification_failure_total{channel} // email/sms
 - keyflow_success_total{flow} // e.g., flow="submit_application"
 - keyflow_attempt_total{flow}
 - concurrent_users_gauge

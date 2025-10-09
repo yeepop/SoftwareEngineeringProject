@@ -28,7 +28,7 @@
 3. 領養申請流程（提交、狀態追蹤、歷史紀錄）。
 4. 送養發佈流程（飼主發佈、管理、等待審核）。
 5. 管理員後台（查看/審核/更新/刪除動物與申請、醫療紀錄管理）。
-6. 通知機制（in-app 與 email 為預設）。
+6. 通知機制（email 與 SMS 為主要通道；in-app messaging 在 MVP 階段為 deferred）。
 
 成功衡量指標（Success metrics）
 ---
@@ -45,7 +45,7 @@
 
 範圍界定（In scope / Out of scope）
 ---
-- In scope: 使用者註冊/登入、動物列表與詳情、申請流程、送養發佈、管理員後台、醫療紀錄的新增/審核/檢視、in-app/email 通知。
+- In scope: 使用者註冊/登入、動物列表與詳情、申請流程、送養發佈、管理員後台、醫療紀錄的新增/審核/檢視、email/SMS 通知（in-app messaging deferred）。
 - Out of scope: 金流、付費廣告、第三方醫療系統整合（未來可再規劃）。
 
 關鍵假設與風險（Assumptions & Risks）

@@ -15,7 +15,7 @@ M --> (Register / Login)
 M --> (Browse Listings)
 M --> (View Listing Details)
 M --> (Submit Application)
-M --> (In-app Messaging)
+	M --> (Notification)
 M --> (Receive Notifications)
 
 O --> (Create Listing)
@@ -35,5 +35,5 @@ Sys --> (Receive Notifications)
 Sys --> (Upload Images/Attachments)
 
 (Browse Listings) .> (View Listing Details) : include
-(Submit Application) .> (In-app Messaging) : include
+	(Submit Application) .> (Notification) : include
 (Manage Medical Record) .> (Verify Medical Record) : extend
