@@ -54,7 +54,7 @@
 
 **Acceptance Scenarios**:
 
-1. **Given**: 會員填寫完必填欄位， **When**: 點擊送出， **Then**: 申請建立（HTTP 201），並寄送 in-app 與 email 通知給送養者與管理員。
+1. **Given**: 會員填寫完必填欄位， **When**: 點擊送出， **Then**: 申請建立（HTTP 201），並寄送 email 通知給送養者與管理員。
 2. **Given**: 欄位驗證失敗（缺少必填）， **When**: 點擊送出， **Then**: 表單顯示錯誤並阻止提交。
 
 **Edge cases**:
@@ -130,16 +130,16 @@
 
 ---
 
-### User Story 8 - 通知與通訊（in-app + email, Priority: P2）
+### User Story 8 - 通知與通訊（email + SMS, Priority: P2）
 
-描述：系統在申請狀態變更、審核結果、留言或管理員操作時發送通知；會員可在個人設定選擇通知偏好（in-app、email、SMS）。
+描述：系統在申請狀態變更、審核結果或管理員操作時發送通知；會員可在個人設定選擇通知偏好（email、SMS）。
 
-**Independent Test**: 當管理員在後台將申請標記為 APPROVED，申請者在 1 分鐘內收到 in-app 與 email 通知（若偏好設為 email）。
+**Independent Test**: 當管理員在後台將申請標記為 APPROVED，申請者在 1 分鐘內收到 email 通知（若偏好設為 email）。
 
 **Acceptance Scenarios**:
 
-1. **Given**: 申請狀態變更， **When**: 變更發生， **Then**: 系統排程發送通知並在使用者的通知中心顯示。
-2. **Given**: 使用者停用 email 通知， **When**: 事件發生， **Then**: 只產生 in-app 通知，不寄送 email。
+1. **Given**: 申請狀態變更， **When**: 變更發生， **Then**: 系統排程發送通知（email/SMS）並記錄發送狀態。
+2. **Given**: 使用者停用 email 通知， **When**: 事件發生， **Then**: 不寄送 email，而以 SMS（若設定）或忽略。
 
 **Edge cases**:
 - 郵件被退回或丟失：系統需有重試機制與失敗記錄。
@@ -147,20 +147,7 @@
 
 ---
 
-### User Story 9 - 簡易 in-app messaging（Priority: P3）
-
-描述：會員可透過平台向送養者發送簡短訊息（文字 + 圖片附件限制），以便約定面談或追問細節；訊息記錄顯示於會員與送養者的對話紀錄中，管理員可於必要時查看或干預。
-
-**Independent Test**: 會員 A 向飼主 B 發送訊息並在 30 秒內顯示於 B 的訊息中心；若 B 未讀，系統在 24 小時後提醒。
-
-**Acceptance Scenarios**:
-
-1. **Given**: 會員 B 有未讀訊息， **When**: B 登入， **Then**: 在訊息中心看到新訊息預覽與未讀計數。
-2. **Given**: 訊息包含附件超過限制， **When**: 上傳， **Then**: 拒絕並提示最大大小與允許格式。
-
-**Edge cases**:
-- 若任一方被停權，訊息應該被凍結並僅供管理員查看。
-
+<!-- Note: In this revision in-app direct messaging (previously User Story 9) has been removed. Direct messaging will be evaluated in a future sprint. Notifications in this spec are delivered via email/SMS. -->
 ---
 
 ### User Story 10 - 動物醫療紀錄管理 (Priority: P1)
