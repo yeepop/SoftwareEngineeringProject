@@ -25,6 +25,8 @@ _備註：實作時請採 RBAC 與最小權限原則，並對管理員引入分�
 
 描述：任何訪客或已登入會員可以在「可領養動物」頁面瀏覽列表，套用篩選與排序（物種、年齡、性別、縣市、關鍵字），並使用分頁或無限滾動查看結果。
 
+Roles: Visitor, Member, Owner, Shelter Staff, Admin — 所有角色皆可瀏覽公開列表；Admin/Owner/Shelter 在登錄或經授權的情況下可查看未公開或待審核的自有刊登（以 RBAC 控制）。
+
 **Why this priority**: 使用者尋找目標動物是平台的第一步，直接影響流量轉換與申請數量。
 
 **Independent Test**: 未登入訪客或已登入會員在列表頁能夠使用至少 4 個不同篩選條件並得到符合條件的結果，分頁或滾動載入下一頁內容。
@@ -45,6 +47,8 @@ _備註：實作時請採 RBAC 與最小權限原則，並對管理員引入分�
 
 描述：從列表進入個別動物詳情頁，包含多張圖片、描述、醫療紀錄摘要、飼主或收容所聯絡資訊（非敏感）、以及「提出申請」或「聯絡飼主」的動作。
 
+Roles: Visitor, Member, Owner, Shelter Staff, Admin — 詳情頁內容為公開視圖；聯絡/申請動作僅在登入且具有適當角色時啟用（Member 可提出申請；Owner/Shelter 可編輯自有刊登）。
+
 **Independent Test**: 點開任一動物卡片能看到 3 張以上的圖片（若存在）、基本資料、醫療紀錄摘要與申請按鈕；點擊圖片可開啟圖片檢視器。
 
 **Acceptance Scenarios**:
@@ -61,6 +65,8 @@ _備註：實作時請採 RBAC 與最小權限原則，並對管理員引入分�
 ### User Story 3 - 提出領養申請 (Priority: P1)
 
 描述：已登入的會員能在動物詳情頁提交領養申請，填寫必要欄位（聯絡方式、申請理由、可到訪時間等），並立即在「我的申請」看到該筆申請（狀態 PENDING）。
+
+Roles: Member — 僅限角色為 Member 的使用者可提交領養申請；Owner/Shelter 不得對自己刊登的動物提出申請。API 與 UI 層需 enforce 此限制。
 
 **Independent Test**: 已登入會員提交表單後系統回傳成功，並在 會員 -> 我的申請 列表看到新紀錄，狀態為 PENDING。
 
@@ -79,6 +85,8 @@ _備註：實作時請採 RBAC 與最小權限原則，並對管理員引入分�
 
 描述：飼主（必須為已驗證會員）可建立送養貼文，包含至少一張圖片、描述、健康與醫療摘要；可在會員頁面編輯或下架該送養；管理員審核後變為公開 PUBLISHED。
 
+Roles: Owner, Shelter Staff, Admin — Owner 或被授權的 Shelter Staff 可建立/管理所屬刊登；Admin 可審核或直接管理任何刊登（記錄操作者與變更）。
+
 **Independent Test**: 飼主建立送養後紀錄狀態為 SUBMITTED；管理員在後台批准後狀態變更為 PUBLISHED，前台可見。
 
 **Acceptance Scenarios**:
@@ -96,6 +104,8 @@ _備註：實作時請採 RBAC 與最小權限原則，並對管理員引入分�
 
 描述：當有會員對飼主的已通過送養動物提出領養申請時，飼主可在自己的送養管理頁檢視所有申請紀錄、查看申請者資料摘要（聯絡資訊視權限與流程揭露），並將其中一筆標記為 "同意面談" 或直接標記為 "接受" 或 "拒絕"（此操作會更新申請狀態並觸發通知 (email/SMS)）。單一已通過送養在任何時間只允許一筆處於審核中。
 
+Roles: Owner, Shelter Staff, Admin — 只有擁有該刊登管理權的 Owner 或 Shelter Staff 可執行審核/狀態變更；Admin 可介入或覆核操作，所有變更皆需寫入 audit log。
+
 **Independent Test**: 飼主在送養管理頁成功對某筆申請做狀態更新（例如設為 UNDER_REVIEW 或 APPROVED），且更新在前台會員申請頁面同步顯示。
 
 **Acceptance Scenarios**:
@@ -111,7 +121,9 @@ _備註：實作時請採 RBAC 與最小權限原則，並對管理員引入分�
 
 ### User Story 6 - 管理員後台審核與資料管理 (Priority: P1)
 
-描述：管理員在後台可以全面查看申請、動物、會員與收容所資料；對送養/領養申請進行審核（標記通過/拒絕/退回），新增或修改動物資料與醫療紀錄，並能執行刪除或恢復（soft-delete）操作。
+描述：管理員在後台可以全面查看並管理申請、動物、會員與收容所資料；可審核送養/領養申請（批准／拒絕／退回）、新增或編輯動物資料與醫療紀錄，並可對資源執行刪除或恢復（soft-delete）。
+
+Roles: Admin — 僅限 Admin（含分級）可存取此後台操作；針對敏感操作應要求更高等級且記錄 actor 與時間。
 
 **Independent Test**: 管理員能在後台將 SUBMITTED 的送養標為 PUBLISHED 並檢視變更日誌；能為動物新增醫療紀錄；能恢復被標為 soft-deleted 的動物。
 
@@ -130,6 +142,8 @@ _備註：實作時請採 RBAC 與最小權限原則，並對管理員引入分�
 
 描述：會員可在個人頁面查看與管理自己提交的領養與送養申請，編輯可編輯的草稿、查看審核歷程、下載申請表、以及接收與查看通知紀錄（email/SMS）。如需直接聯絡，使用者將透過已核准或公開的聯絡資訊進行聯繫；平台於 MVP 階段不提供即時站內聊天功能。
 
+Roles: Member, Owner, Shelter Staff, Admin — Member 可管理個人申請（編輯/撤回/下載）且僅能存取自己的申請；Owner/Shelter 與 Admin 對其相關的申請可見摘要與執行審核權限（視權限）。
+
 **Independent Test**: 會員登入後在「我的申請」看到所有歷史紀錄；可下載某筆申請的 PDF 摘要。
 
 **Acceptance Scenarios**:
@@ -145,6 +159,8 @@ _備註：實作時請採 RBAC 與最小權限原則，並對管理員引入分�
 ### User Story 8 - 通知與通訊（email + SMS, Priority: P2）
 
 描述：系統在申請狀態變更、審核結果或管理員操作時發送通知；會員可在個人設定選擇通知偏好（email、SMS）。
+
+Roles: All registered roles (Member, Owner, Shelter Staff, Admin) — 所有註冊使用者可設定通知偏好；系統會依偏好對事件發送 email 或 SMS。訪客不可設定偏好但在必要情況可透過 email/phone 被聯絡（若提供）。
 
 **Independent Test**: 當管理員在後台將申請標記為 APPROVED，申請者在 1 分鐘內收到 email 通知（若偏好設為 email）。
 
@@ -165,6 +181,8 @@ _備註：實作時請採 RBAC 與最小權限原則，並對管理員引入分�
 ### User Story 10 - 動物醫療紀錄管理 (Priority: P1)
 
 描述：管理員、收容所工作人員與飼主皆可為動物新增、編輯或附加醫療紀錄（recordType、date、provider、details、attachments），但所有新增或修改的紀錄初始為 unverified 狀態；系統須保留審核歷程（verified, verifiedBy, verifiedAt）與變更日誌，管理員可驗證 (verify) 或拒絕該紀錄。醫療紀錄的摘要會在動物詳情頁展示，完整紀錄僅顯示給有權限的使用者或在經過審核後公開。
+
+Roles: Owner, Shelter Staff, Admin — Owner 與 Shelter Staff 可新增/更新其所屬動物的醫療紀錄（狀態初為 unverified）；Admin 負責 verify/reject 並保留審計紀錄；公眾僅見已驗證摘要。
 
 **Why this priority**：醫療紀錄直接影響領養者對動物健康與適配性的判斷，為配對可靠性與平台信任的關鍵要素。
 
