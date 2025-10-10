@@ -21,6 +21,8 @@
 - 想送養毛小孩的飼主（需註冊並驗證）。
 - 平台管理員與審核人員。
 
+註：角色模型標準化為 Persisted roles = GENERAL_MEMBER, SHELTER_MEMBER, ADMIN（Visitor 為非持久化匿名概念）。
+
 核心功能（Key features）
 ---
 1. 使用者註冊/登入、個人資料管理（會員介面）。
@@ -28,7 +30,7 @@
 3. 領養申請流程（提交、狀態追蹤、歷史紀錄）。
 4. 送養發佈流程（飼主發佈、管理、等待審核）。
 5. 管理員後台（查看/審核/更新/刪除動物與申請、醫療紀錄管理）。
-6. 通知機制（email 與 SMS 為主要通道；in-app messaging 在 MVP 階段為 deferred）。
+6. 通知機制（Notification Center 為 MVP：平台內通知為首要；外部通道 Email/SMS 與 in-app direct messaging 均為 deferred）。
 
 成功衡量指標（Success metrics）
 ---
@@ -45,13 +47,15 @@
 
 範圍界定（In scope / Out of scope）
 ---
-- In scope: 使用者註冊/登入、動物列表與詳情、申請流程、送養發佈、管理員後台、醫療紀錄的新增/審核/檢視、email/SMS 通知（in-app messaging deferred）。
+- In scope: 使用者註冊/登入、動物列表與詳情、申請流程、送養發佈、管理員後台、醫療紀錄的新增/審核/檢視、Notification Center（平台內通知）為 MVP；外部通道（Email/SMS）與 in-app direct messaging 為 deferred。
 - Out of scope: 金流、付費廣告、第三方醫療系統整合（未來可再規劃）。
 
 關鍵假設與風險（Assumptions & Risks）
 ---
 - 假設：所有飼主需以 email 驗證帳戶；上架需附至少一張照片以提高審核通過率。
 - 風險：不良或虛假上架資料導致配對失敗；需完善審核與舉報流程以降低風險。
+
+架構與角色假設：收容所採單一負責人模型（Shelter 帳號由單一 primaryAccountUser 綁定；multi-staff 支援為未來擴充），RBAC 以單一 `role` 欄位（GENERAL_MEMBER | SHELTER_MEMBER | ADMIN）。
 
 待決事項（Decisions required）
 ---
@@ -63,6 +67,8 @@
 1. 將本摘要發給主要利害關係人確認（時間：2 個工作日內回饋）。
 2. 若通過，請我產出初始 backlog（epics → stories）與每項 FR 的 acceptance tests，準備進入 sprint planning。
 3. 訂出上線里程碑（MVP 範圍、測試/上線時間表）。
+
+補充建議：請確認是否將外部通知（Email/SMS）或 in-app direct messaging 優先列入下個里程碑（若需要，會影響 API/DB 設計與外部 provider 選擇）。
 
 聯絡人與檔案
 ---

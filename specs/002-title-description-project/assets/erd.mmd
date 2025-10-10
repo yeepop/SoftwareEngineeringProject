@@ -1,3 +1,4 @@
+%% ERD generated/normalized to match schema.prisma - ANIMALIMAGE used for image attachments
 erDiagram
     USER {
         string id PK
@@ -35,7 +36,7 @@ erDiagram
         datetime deletedAt
     }
 
-    IMAGE {
+    ANIMALIMAGE {
         string id PK
         string ownerType
         string ownerId
@@ -82,10 +83,10 @@ erDiagram
 
     USER ||--o{ ANIMAL : owns
     SHELTER ||--o{ ANIMAL : houses
-    ANIMAL ||--o{ IMAGE : has
+    ANIMAL ||--o{ ANIMALIMAGE : has
     ANIMAL ||--o{ APPLICATION : has
     USER ||--o{ APPLICATION : applies
     ANIMAL ||--o{ MEDICAL_RECORD : has
     USER ||--o{ MEDICAL_RECORD : creates
     USER ||--o{ AUDIT_LOG : performs
-    ANIMAL ||--o{ IMAGE : "attachments"
+    ANIMAL ||--o{ ANIMALIMAGE : "attachments"

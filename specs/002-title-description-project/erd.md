@@ -6,135 +6,184 @@ Notes:
 - The schema below is implementation-oriented and designed to map cleanly to Prisma/Postgres.
 - `VISITOR` is a non-persisted concept (anonymous session). Persisted roles: GENERAL_MEMBER, SHELTER_MEMBER, ADMIN.
 
-## Entities & Attributes (summary)
+
+## Enums (from schema.prisma)
+
+- Role: GENERAL_MEMBER, SHELTER_MEMBER, ADMIN
+- Species: CAT, DOG
+- Sex: MALE, FEMALE, UNKNOWN
+- AnimalStatus: DRAFT, SUBMITTED, PUBLISHED, RETIRED
+- ApplicationType: ADOPTION, REHOME
+- ApplicationStatus: PENDING, UNDER_REVIEW, APPROVED, REJECTED, WITHDRAWN
+- MedicalRecordType: TREATMENT, CHECKUP, VACCINE, SURGERY, OTHER
+- ExternalDeliveryStatus: NOT_APPLICABLE, PENDING, SENT, FAILED
+- JobStatus: PENDING, RUNNING, SUCCEEDED, FAILED
+
+
+## Entities & Attributes (Prisma-aligned summary)
 
 ### User
-- id: UUID PK
-- email: String (unique, indexed)
-- username: String
-- phoneNumber: String
-- firstName: String
-- lastName: String
-- role: enum {GENERAL_MEMBER, SHELTER_MEMBER, ADMIN}
+- id: String (UUID PK)
+- email: String (unique)
+- username: String?
+- phoneNumber: String?
+- firstName: String?
+- lastName: String?
+- role: Role (enum)
 - verified: Boolean
-- primaryShelterId: UUID? (FK -> Shelter.id) — optional link for single-account shelters
+- primaryShelterId: String? (FK -> Shelter.id) — optional link for single-account shelters
 - profilePhotoUrl: String?
-- settings: JSONB?
+- settings: Json?
 - createdAt: DateTime
 - updatedAt: DateTime
-- deletedAt: DateTime? (soft delete)
+- deletedAt: DateTime?
+
+Relations:
+- applications: Application[] (@relation("ApplicantApplications"))
+- notifications: Notification[]
+- animalsOwned: Animal[] (@relation("OwnerAnimals"))
+- assignedApps: Application[] (@relation("AssigneeApplications"))
+- createdRecords: MedicalRecord[] (@relation("CreatorRecords"))
+- verifiedRecords: MedicalRecord[] (@relation("VerifierRecords"))
 
 ### Shelter
-- id: UUID PK
+- id: String (UUID PK)
 - name: String
 - slug: String (unique)
-- contactEmail: String
-- contactPhone: String
-- address: JSON (street, city, region, postal)
+- contactEmail: String?
+- contactPhone: String?
+- address: Json?
 - verified: Boolean
-- primaryAccountUserId: UUID FK -> User.id
-- metadata: JSONB?
+- primaryAccountUserId: String? (FK -> User.id) — primary account user for this shelter
+- metadata: Json?
 - createdAt, updatedAt, deletedAt
+
+Relations:
+- animals: Animal[]
+- auditLogs: AuditLog[]
 
 ### Animal
-- id: UUID PK
+- id: String (UUID PK)
 - name: String
-- species: enum {CAT, DOG}
+- species: Species
 - breed: String?
-- sex: enum {MALE, FEMALE, UNKNOWN}
-- dob: Date? (or age:int)
-- description: Text
-- status: enum {DRAFT, SUBMITTED, PUBLISHED, RETIRED}
-- shelterId: UUID? FK -> Shelter.id
-- ownerId: UUID? FK -> User.id
-- medicalSummary: Text?
-- createdBy: UUID FK -> User.id
+- sex: Sex
+- dob: DateTime?
+- description: String?
+- status: AnimalStatus
+- shelterId: String? (FK -> Shelter.id)
+- ownerId: String? (FK -> User.id) — references a GENERAL_MEMBER when present; for shelter-owned animals prefer shelterId
+- medicalSummary: String?
+- createdBy: String? (FK -> User.id)
 - createdAt, updatedAt, deletedAt
+
+Relations:
+- images: AnimalImage[]
+- medicalRecords: MedicalRecord[]
+- applications: Application[]
+
+Indexes:
+- @@index([shelterId])
+- @@index([ownerId])
 
 ### AnimalImage
-- id: UUID PK
-- animalId: UUID FK -> Animal.id
+- id: String (UUID PK)
+- animalId: String (FK -> Animal.id)
 - storageKey: String
 - url: String
-- mimeType: String
-- width: Int, height: Int
-- order: Int
-- createdAt
+- mimeType: String?
+- width: Int?
+- height: Int?
+- order: Int?
+- createdAt: DateTime
 
 ### Application
-- id: UUID PK
-- applicantId: UUID FK -> User.id
-- animalId: UUID FK -> Animal.id
-- type: enum {ADOPTION, REHOME}
-- status: enum {PENDING, UNDER_REVIEW, APPROVED, REJECTED, WITHDRAWN}
+- id: String (UUID PK)
+- applicantId: String (FK -> User.id)
+- animalId: String (FK -> Animal.id)
+- type: ApplicationType
+- status: ApplicationStatus
 - submittedAt: DateTime
 - reviewedAt: DateTime?
-- reviewNotes: Text?
-- assigneeId: UUID? FK -> User.id
+- reviewNotes: String?
+- assigneeId: String? (FK -> User.id)
 - version: Int (optimistic locking)
 - idempotencyKey: String?
-- attachments: JSONB? (or relation to Attachment)
+- attachments: Json?
 - createdAt, updatedAt, deletedAt
+
+Indexes:
+- @@index([applicantId, status])
+- @@index([animalId])
 
 ### MedicalRecord
-- id: UUID PK
-- animalId: UUID FK -> Animal.id
-- recordType: enum {TREATMENT, CHECKUP, VACCINE, SURGERY, OTHER}
-- date: Date
-- provider: String
-- details: Text
-- attachments: JSONB? (or FK to Attachment)
+- id: String (UUID PK)
+- animalId: String (FK -> Animal.id)
+- recordType: MedicalRecordType
+- date: DateTime
+- provider: String?
+- details: String?
+- attachments: Json?
 - verified: Boolean
-- verifiedBy: UUID? FK -> User.id
-- verifiedAt: DateTime?
-- createdBy: UUID FK -> User.id
+- verifiedBy: String? (FK -> User.id)
+- createdBy: String (FK -> User.id)
 - createdAt, updatedAt, deletedAt
 
+Indexes:
+- @@index([animalId])
+
 ### Attachment
-- id: UUID PK
-- ownerType: enum {animal, application, medical_record, user, shelter, notification}
-- ownerId: UUID
+- id: String (UUID PK)
+- ownerType: String
+- ownerId: String
 - storageKey: String
 - url: String
 - filename: String
 - mimeType: String
 - size: Int
-- createdBy: UUID
-- createdAt, deletedAt
+- createdBy: String
+- createdAt: DateTime
+- deletedAt: DateTime?
 
 ### Notification
-- id: UUID PK
-- recipientId: UUID FK -> User.id
-- actorId: UUID? FK -> User.id
+- id: String (UUID PK)
+- recipientId: String (FK -> User.id)
+- actorId: String? (FK -> User.id)
 - type: String
-- payload: JSONB
-- read: Boolean (default false)
+- payload: Json?
+- read: Boolean
 - createdAt: DateTime
 - deliveredAt: DateTime?
-- externalDeliveryStatus: enum {NOT_APPLICABLE, PENDING, SENT, FAILED}
+- externalDeliveryStatus: ExternalDeliveryStatus
 - retryCount: Int
-- lastError: Text?
+- lastError: String?
+
+Indexes:
+- @@index([recipientId, read])
 
 ### Job
-- id: UUID PK
-- type: String (e.g., shelter:animals:import, data:export)
-- status: enum {PENDING, RUNNING, SUCCEEDED, FAILED}
-- payload: JSONB
-- resultSummary: JSONB?
-- createdBy: UUID
+- id: String (UUID PK)
+- type: String
+- status: JobStatus
+- payload: Json?
+- resultSummary: Json?
+- createdBy: String? (FK -> User.id)
 - createdAt, startedAt, finishedAt, attempts
 
 ### AuditLog
-- id: UUID PK
-- actorId: UUID? FK -> User.id
+- id: String (UUID PK)
+- actorId: String? (FK -> User.id)
 - action: String
 - targetType: String
-- targetId: UUID
-- before: JSONB?
-- after: JSONB?
-- notes: Text?
+- targetId: String?
+- before: Json?
+- after: Json?
+- notes: String?
 - timestamp: DateTime
-- shelterId: UUID?
+- shelterId: String? (FK -> Shelter.id)
+
+Indexes:
+- @@index([actorId])
 
 
 ## Relationships (high level)
@@ -187,6 +236,7 @@ erDiagram
       UUID applicantId FK
       UUID animalId FK
       String status
+      JSON attachments
     }
     MEDICALRECORD {
       UUID id PK
@@ -241,8 +291,8 @@ Generated on 2025-10-10 by automation — review fields and adapt to your DB con
 - Image (id PK, ownerType, ownerId, url, altText, createdAt)
 - Application (id PK, type, animalId FK -> Animal.id, applicantId FK -> User.id, answers JSON, status, submittedAt, reviewedAt)
 - MedicalRecord (id PK, animalId FK -> Animal.id, recordType, date, provider, details, attachments JSON, verified, verifiedBy FK -> User.id, createdBy FK -> User.id)
-- AuditLog (id PK, actorId FK -> User.id, action, targetType, targetId, before JSON, after JSON, timestamp)
-- Conversation / Message (conversationId PK, participants[], Message: id PK, conversationId FK, senderId FK -> User.id, content, createdAt)
+-- AuditLog (id PK, actorId FK -> User.id, action, targetType, targetId, before JSON, after JSON, timestamp)
+- Conversation / Message: DEFERRED for MVP (in-app direct messaging is out of scope for this release). If introduced later, model as (conversationId PK, participants[], Message: id PK, conversationId FK, senderId FK -> User.id, content, createdAt).
 
 ---
 
@@ -281,9 +331,9 @@ erDiagram
         datetime updatedAt
     }
 
-    ANIMAL {
-        string id PK
-        string ownerId FK
+  ANIMAL {
+    string id PK
+    string ownerId FK /* references a GENERAL_MEMBER when present; for shelter-owned animals prefer shelterId */
         string shelterId FK
         string name
         string species
@@ -298,14 +348,14 @@ erDiagram
         datetime deletedAt
     }
 
-    IMAGE {
-        string id PK
-        string ownerType
-        string ownerId
-        string url
-        string altText
-        datetime createdAt
-    }
+  ANIMALIMAGE {
+    string id PK
+    string ownerType
+    string ownerId
+    string url
+    string altText
+    datetime createdAt
+  }
 
     APPLICATION {
         string id PK
@@ -345,13 +395,13 @@ erDiagram
 
     USER ||--o{ ANIMAL : owns
     SHELTER ||--o{ ANIMAL : houses
-    ANIMAL ||--o{ IMAGE : has
+  ANIMAL ||--o{ ANIMALIMAGE : has
     ANIMAL ||--o{ APPLICATION : has
     USER ||--o{ APPLICATION : applies
     ANIMAL ||--o{ MEDICAL_RECORD : has
     USER ||--o{ MEDICAL_RECORD : creates
     USER ||--o{ AUDIT_LOG : performs
-    ANIMAL ||--o{ IMAGE : "attachments"
+  ANIMAL ||--o{ ANIMALIMAGE : "attachments"
 ```
 
 ---

@@ -158,7 +158,7 @@
 
 ### User Story 6 - 飼主 / 收容所 審核（收養者選擇）(Priority: P2)
 
-**描述**：當會員對已刊登的動物提出領養申請時，負責該刊登的審核人（個人 Owner 或被授權的 Shelter / Shelter 操作者）可在管理頁檢視該動物的申請清單、查看申請者摘要與問卷內容，並對申請進行流程性標記（如 UNDER_REVIEW、ACCEPTED、REJECTED）。審核流程需支援「指派 (assign)」、「鎖定 (lock)」與「覆核 (escalation)」，以避免多人同時審核造成競爭狀態。
+**描述**：當會員對已刊登的動物提出領養申請時，負責該刊登的審核人（個人 GENERAL_MEMBER 或被授權的 Shelter / Shelter 操作者）可在管理頁檢視該動物的申請清單、查看申請者摘要與問卷內容，並對申請進行流程性標記（如 UNDER_REVIEW、ACCEPTED、REJECTED）。審核流程需支援「指派 (assign)」、「鎖定 (lock)」與「覆核 (escalation)」，以避免多人同時審核造成競爭狀態。
 
 **Roles**: General Member, Shelter Member, Admin —
 
@@ -170,11 +170,11 @@
 
 **Acceptance Scenarios**:
 
-1. **Given**: 多筆申請存在， **When**: 審核人（Owner 或 Shelter / Shelter 操作者）選擇一筆標記為 UNDER_REVIEW， **Then**: 系統應記錄該操作者與時間，並將該筆申請狀態更新為 UNDER_REVIEW；系統應阻止其他人同時將另一筆設定為同一時段的 UNDER_REVIEW（可透過 assignment 或 business rule 實作）。
+1. **Given**: 多筆申請存在， **When**: 審核人（GENERAL_MEMBER 或 Shelter / Shelter 操作者）選擇一筆標記為 UNDER_REVIEW， **Then**: 系統應記錄該操作者與時間，並將該筆申請狀態更新為 UNDER_REVIEW；系統應阻止其他人同時將另一筆設定為同一時段的 UNDER_REVIEW（可透過 assignment 或 business rule 實作）。
 
 2. **Given**: Shelter 指派某申請給外部處理人或管理員， **When**: 被指派者在其任務清單處理， **Then**: Application.assigneeId = assignee.id，處理紀錄記錄 assignee 與處理時間；若 assignee 離線，指派者可重新指派。
 
-3. **Given**: Owner 決定接受某位申請者， **When**: Owner 點選 ACCEPT 並填寫交接/面談備註， **Then**: 申請狀態變更為 APPROVED，系統於 Notification Center 建立通知給申請者與管理員並在 audit log 留存紀錄；同時其他候補申請應收到狀態更新（例如 REMAINING -> REJECTED 或 WAITLISTED，依平台政策）。
+3. **Given**: GENERAL_MEMBER 決定接受某位申請者， **When**: GENERAL_MEMBER 點選 ACCEPT 並填寫交接/面談備註， **Then**: 申請狀態變更為 APPROVED，系統於 Notification Center 建立通知給申請者與管理員並在 audit log 留存紀錄；同時其他候補申請應收到狀態更新（例如 REMAINING -> REJECTED 或 WAITLISTED，依平台政策）。
 
 4. **Given**: 多名審核人同時嘗試操作同一申請， **When**: 其中一人先完成 ACCEPT， **Then**: 其他人的請求應回傳 409 或顯示已變更狀態，並提供差異說明（who/when）。
 
@@ -300,7 +300,7 @@ Mapping to FRs：此 user story 直接對應 **FR-008**（醫療紀錄的新增�
 
 - **FR-005**: Publish Rehome (發佈送養) — 系統 MUST 允許 `GENERAL_MEMBER` 與 `SHELTER_MEMBER` 發佈送養/刊登。`GENERAL_MEMBER` 的個人刊登由其個人帳號管理；`SHELTER_MEMBER` 的刊登以機構身份 (shelterId) 建立（本版本不支援 shelter 多成員管理）。發佈後狀態為 SUBMITTED，需由 `ADMIN` 審核或自動政策審查通過後變更為 PUBLISHED。
 
-- **FR-006**: Owner / Shelter Review & Assignment (飼主 / 收容所 審核與指派) — 系統 MUST 允許刊登者（`GENERAL_MEMBER` 或 `SHELTER_MEMBER`）在其管理介面檢視申請並執行審核動作（UNDER_REVIEW / ACCEPT / REJECT），並支援指派 (assign)/鎖定 (lock) 機制以避免競爭處理。`ADMIN` 可介入或覆核任一申請。
+- **FR-006**: GENERAL_MEMBER / Shelter Review & Assignment (飼主 / 收容所 審核與指派) — 系統 MUST 允許刊登者（`GENERAL_MEMBER` 或 `SHELTER_MEMBER`）在其管理介面檢視申請並執行審核動作（UNDER_REVIEW / ACCEPT / REJECT），並支援指派 (assign)/鎖定 (lock) 機制以避免競爭處理。`ADMIN` 可介入或覆核任一申請。
 
 - **FR-007**: Audit Trail (稽核歷程) — 對於每筆領養/審核相關操作，系統必須記錄完整的審核歷程（actorId、action、before、after、notes、timestamp）；AuditLog 不可被一般使用者刪除，且可供 `ADMIN` 查詢。
 
@@ -319,7 +319,7 @@ Mapping to FRs：此 user story 直接對應 **FR-008**（醫療紀錄的新增�
 - [Entity 1] User / Member: 使用者帳號
     - purpose: 平台使用者（申請者、刊登者、收容所負責人、管理員）
     - key attributes: id(UUID), role(enum), email(unique), displayName, phone(optional), verified(bool), createdAt, updatedAt
-    - relations: hasMany(Application), hasMany(Notification), may belongTo(Shelter) via primaryAccountUserId
+    - relations: hasMany(Application), hasMany(Notification), may belongTo(Shelter) via primaryShelterId
 
 - [Entity 2] Animal: 項目紀錄
     - purpose: 表示可領養之動物
@@ -338,7 +338,7 @@ Mapping to FRs：此 user story 直接對應 **FR-008**（醫療紀錄的新增�
 
 - [Entity 5] Shelter
     - purpose: 收容所/機構資料
-    - key attributes: id(UUID), name, primaryAccountUserId, contact, address, verified(bool), createdAt, updatedAt
+    - key attributes: id(UUID), name, primaryShelterId, contact, address, verified(bool), createdAt, updatedAt
     - relations: hasMany(Animal), hasOne(User primaryAccount)
 
 - [Entity 6] Notification
@@ -359,7 +359,6 @@ Mapping to FRs：此 user story 直接對應 **FR-008**（醫療紀錄的新增�
 - **SC-002 (系統可用量/負載)**: 在常態高峰期系統能同時承受 1,000 名並發活躍使用者（API 調用）且響應時間 95th percentile < 500ms（不含背景 Job 與大型匯入/匯出）。
 - **SC-003 (任務成功率 / 使用者滿意度)**: 90% 的使用者在首次嘗試時成功完成其主要任務（例如：搜尋並提交申請），回饋調查滿意度平均分數 >= 4/5。
 - **SC-004 (業務指標 - 支援負擔減少)**: 上線後 3 個月內，與領養申請流程相關的客服單數下降至少 50%（相較於上線前的基線或可比較期間）。
-
 ## Non-Functional Requirements / 非功能性需求
 
 以下為建議的非功能性需求（NFR），每一項皆提供可量化的目標值與實作/監控建議：

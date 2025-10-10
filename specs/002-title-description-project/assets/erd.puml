@@ -1,4 +1,5 @@
 @startuml
+' ERD generated/normalized to match schema.prisma - ANIMALIMAGE used for image attachments
 ' Entities
 entity "User" as U {
   * id : UUID
@@ -39,7 +40,7 @@ entity "Animal" as A {
   deleted_at
 }
 
-entity "Image" as I {
+entity "ANIMALIMAGE" as AI {
   * id : UUID
   --
   owner_type
@@ -55,7 +56,7 @@ entity "Application" as App {
   type
   animal_id
   applicant_id
-  answers
+  attachments
   status
   submitted_at
   reviewed_at
@@ -91,7 +92,7 @@ entity "AuditLog" as AL {
 ' Relationships
 U ||--o{ A : owns
 S ||--o{ A : houses
-A ||--o{ I : has
+A ||--o{ AI : has
 A ||--o{ App : has
 U ||--o{ App : applies
 A ||--o{ MR : has
@@ -99,6 +100,6 @@ U ||--o{ MR : creates
 U ||--o{ AL : performs
 
 ' Composite/attachment relationship
-A ||--o{ I : attachments
+A ||--o{ AI : attachments
 
 @enduml
