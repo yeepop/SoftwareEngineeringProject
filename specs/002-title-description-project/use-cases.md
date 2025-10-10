@@ -7,7 +7,7 @@
 
 ## 主要演員 (Actors)
 - 訪客 (Visitor)：未登入的任何人，可瀏覽公開的動物刊登、查看列表與細節。
-- 會員 (Member)：註冊並登入的使用者，可申請領養、儲存收藏、發送訊息、檢視申請狀態。
+- 會員 (Member)：註冊並登入的使用者，可申請領養、儲存收藏、接收通知（email/SMS）、檢視申請狀態。
 - 飼主 / 送養者 (Owner)：擁有或管理某則動物刊登的會員，可建立/編輯/下架刊登、回覆申請。
 - 收容所 (Shelter)：以機構身份管理多筆動物刊登（邏輯上與 Owner 類似，可視為特殊角色）。
 - 管理員 (Admin)：平台管理員，可審核刊登、管理使用者、處理違規、查看報告。
@@ -25,7 +25,7 @@
 - UC-08: 審核申請 (Review Application)
 - UC-09: 管理醫療紀錄 (Add/Edit Medical Record)
 - UC-10: 驗證醫療紀錄 (Verify Medical Record)
-- UC-11: 站內訊息 (In-app Messaging)
+-- UC-11: 站內即時訊息 (In-app Messaging) — Deferred (MVP 不包含)
 - UC-12: 收到通知 (Receive Notifications)
 - UC-13: 管理後台與報告 (Admin Dashboard & Reports)
 
@@ -51,7 +51,7 @@ M --> (Register / Login)
 M --> (Browse Listings)
 M --> (View Listing Details)
 M --> (Submit Application)
-M --> (In-app Messaging)
+M --> (通知系統 / Notification)
 M --> (Receive Notifications)
 
 O --> (Create Listing)
@@ -71,7 +71,7 @@ Sys --> (Receive Notifications)
 Sys --> (Upload Images/Attachments)
 
 (Browse Listings) .> (View Listing Details) : include
-(Submit Application) .> (In-app Messaging) : include
+(Submit Application) .> (通知系統 / Notification) : include
 (Manage Medical Record) .> (Verify Medical Record) : extend
 ```
 
@@ -99,7 +99,7 @@ package "Public" {
 package "User Actions" {
   (Register / Login)
   (Submit Application)
-  (In-app Messaging)
+  (通知系統 / Notification)
   (Receive Notifications)
 }
 
@@ -123,7 +123,7 @@ Member --> (Register / Login)
 Member --> (Browse Listings)
 Member --> (View Listing Details)
 Member --> (Submit Application)
-Member --> (In-app Messaging)
+Member --> (通知系統 / Notification)
 Member --> (Receive Notifications)
 
 Owner --> (Create Listing)
