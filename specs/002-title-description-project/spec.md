@@ -9,15 +9,18 @@
 
 此規格以「讓更多人以領養代替購買」為核心目標，優先支援會員瀏覽與提出領養申請、飼主發佈送養、以及管理員的審核流程。
 
+
 ## Roles & Permissions
 
 | 角色                          | 定位與主要目標                 | 權限範圍               | 主要操作項目                                                                      | 是否可編輯資料             |
 | --------------------------- | ----------------------- | ------------------ | --------------------------------------------------------------------------- | ------------------- |
-| 🐾 **訪客（Visitor）**          | 一般瀏覽者，尚未註冊會員。           | 只能查看公開資訊           | - 瀏覽動物清單<br>- 篩選、搜尋<br>- 檢視基本資料與照片                                          | ❌ 否                 |
-| 👤 **會員（Member / 領養者）**     | 想申請領養的使用者。需註冊登入後使用。     | 可建立申請並管理個人資料       | - 建立收養申請<br>- 查看申請進度<br>- 接收通知（Email/SMS）<br>- 評價與回饋                        | ⭕ 可編輯個人資料與申請內容（審核前） |
-| 🏠 **飼主（Owner / 送養者）**      | 動物的原飼主或代送養者。負責刊登與審核申請。  | 可管理自己刊登的動物與其領養流程   | - 新增／編輯動物資料（含照片、描述、健康資訊）<br>- 查看申請者資料<br>- 同意或拒絕申請<br>- 更新領養狀態（待審核→配對成功）    | ⭕ 可編輯所屬動物的資訊        |
-| 🐕 **收容所人員（Shelter Staff）** | 與平台合作之收容單位人員，代替收容所管理資料。 | 類似飼主，但有多隻動物與批次管理權限 | - 批次新增／更新動物資料<br>- 管理多筆領養申請<br>- 登錄醫療紀錄與晶片資訊                                | ⭕ 可編輯所屬收容所動物資料      |
-| 🛠️ **管理員（Admin）**          | 平台後台人員，負責稽核、控管與維護整體運作。  | 最高權限，可檢視與管理所有資料    | - 審核飼主與收容所帳號<br>- 審核新刊登的動物資訊<br>- 稽核醫療紀錄與領養紀錄<br>- 處理檢舉、封鎖帳號<br>- 系統公告與通知設定 | ⭕ 可新增／編輯／刪除任何資料     |
+|**訪客（Visitor）**          | 一般瀏覽者，尚未註冊會員。           | 只能查看公開資訊           | - 瀏覽動物清單<br>- 篩選、搜尋<br>- 檢視基本資料與照片                                          | ❌ 否                 |
+|**會員（Member）**           | 已註冊的個人使用者（可為領養者或個人送養者）。 | 建立/申請/管理個人刊登與申請      | - 建立個人資料與偏好設定<br>- 建立或管理個人送養刊登<br>- 提出領養申請（不得對自己刊登的動物提出申請）<br>- 接收通知（Email/SMS） | ⭕ 可編輯個人資料與申請內容（審核前） |
+|**收容所（Shelter）帳號**     | 代表收容所的組織帳號，由單一負責人（或代理人）以機構身份操作。 | 機構級管理（批次操作，但不含成員管理）   | - 批次新增/匯入動物<br>- 管理機構內申請、報表與狀態（單一負責人操作）<br>- 指派/處理機構相關工作（以該負責人為操作者）                       | ⭕ 可編輯所屬收容所動物資料      |
+|**管理員（Admin）**          | 平台後台人員，負責稽核、控管與維護整體運作。  | 最高權限，可檢視與管理所有資料    | - 審核飼主與收容所帳號<br>- 審核新刊登的動物資訊<br>- 稽核醫療紀錄與領養紀錄<br>- 處理檢舉、封鎖帳號<br>- 系統公告與通知設定 | ⭕ 可新增／編輯／刪除任何資料     |
+
+
+_註：為了簡化使用者模型，實作建議使用一個 `role` 欄位來表示主要身份：`role` = Visitor | Member | Shelter | Admin。預設情況下，`Shelter` 為單一負責人帳號，不支援內建的多成員管理（即暫不需 `shelterMemberships` 關聯）。若未來需支援多名 staff 協作，則可在後續迭代引入 `shelterMemberships` 或單獨的組織/人員模型。_
 
 _備註：實作時請採 RBAC 與最小權限原則，並對管理員引入分級（Content Admin / Support Admin / Super Admin）與完整 AuditLog 審計。_
 
@@ -25,7 +28,7 @@ _備註：實作時請採 RBAC 與最小權限原則，並對管理員引入分�
 
 描述：任何訪客或已登入會員可以在「可領養動物」頁面瀏覽列表，套用篩選與排序（物種、年齡、性別、縣市、關鍵字），並使用分頁或無限滾動查看結果。
 
-Roles: Visitor, Member, Owner, Shelter Staff, Admin — 所有角色皆可瀏覽公開列表；Admin/Owner/Shelter 在登錄或經授權的情況下可查看未公開或待審核的自有刊登（以 RBAC 控制）。
+Roles: Visitor, Member, Owner, Shelter, Admin — 所有角色皆可瀏覽公開列表；Admin/Owner/Shelter 在登錄或經授權的情況下可查看未公開或待審核的自有刊登（以 RBAC 控制）。
 
 **Why this priority**: 使用者尋找目標動物是平台的第一步，直接影響流量轉換與申請數量。
 
@@ -48,7 +51,7 @@ Roles: Visitor, Member, Owner, Shelter Staff, Admin — 所有角色皆可瀏覽
 
 描述：使用者從清單進入個別動物詳情頁，頁面顯示多張圖片（圖片檢視器）、完整描述、近期醫療紀錄摘要，以及送養者（飼主或收容所）的非敏感公開資訊（例如縣市、收容所名稱、刊登者簡介）。頁面提供主要行動按鈕：「提出申請」。
 
-Roles: Visitor, Member, Owner, Shelter Staff, Admin — 詳情頁的基本資訊對所有角色公開；互動行為「提出申請」僅在登入且 role = Member 時啟用。Owner / Shelter Staff 對其所屬刊登看到額外控制（編輯、下架、查看該刊登的申請列表）；Admin 可查看並干預所有詳情與申請流程。
+Roles: Visitor, Member, Owner, Shelter, Admin — 詳情頁的基本資訊對所有角色公開；互動行為「提出申請」僅在登入且 role = Member 時啟用。Owner / Shelter 對其所屬刊登看到額外控制（編輯、下架、查看該刊登的申請列表）；Admin 可查看並干預所有詳情與申請流程。
 
 
 **Why this priority**: 動物詳情頁是使用者做出是否提出領養申請的關鍵接觸點，提供充分且可信的資訊（圖片、醫療摘要、刊登者信任指標）會顯著提升申請轉換率與平台信任，因此列為 P1。
@@ -80,6 +83,35 @@ Notes:
 
 - 與上一版相比，主動聯絡刊登者的「聯絡請求 / ContactRequest」功能已在 MVP 階段刪除；若日後需要再提出設計需求以便在次要迭代加入。
 
+**Business rules: 申請行為與角色限制**
+
+- 為避免利益衝突與錯誤操作，系統 MUST 拒絕由屬於某收容所（Shelter）的帳號以該機構身份對同一機構下的動物提出領養申請。若該收容所操作人要以個人身分申請，必須使用個人 Member 帳號或透過明確的「切換為個人身分」流程（含顯式確認與紀錄）。
+- 系統 MUST 拒絕 Owner 對自己刊登的動物提出申請（403 Forbidden），以避免自動化錯誤或濫用。
+ - 若使用者同時擁有多重身份（例如同時為 Member 與 Shelter），系統需要求操作上下文（actingAs: PERSONAL | SHELTER）於提交申請時明確指定，並在 audit log 中記錄該上下文。
+
+API behaviour (pseudo):
+
+- POST /applications { applicantId, animalId, answers, attachments?, actingAs? }
+	- Server checks: applicant role & shelter relationship; if applicant is a Shelter account and animal.shelterId in sheltersOfUser(applicantId) => 403 {code: 'forbidden_by_role', reason: 'shelter_account_cannot_apply_for_own_shelter_animals'}
+	- If applicantId == animal.ownerId => 403 {code: 'forbidden_by_role', reason: 'owner_cannot_apply_for_own_listing'}
+	- On success => 201 with Application object and applicantRole & actingAs recorded.
+
+UI rules:
+
+- 對於不允許提交申請的使用者（例如 Shelter 帳號對自家 animal 或 Owner 對自家 animal），應在詳情頁上隱藏或 disable 「提出申請」按鈕，並顯示 tooltip/說明（例如「您的帳號為該收容所帳號，請使用個人帳號提出申請」）。
+- 若支援同一帳號切換上下文（actingAs），需在 UI 顯示當前操作身份並要求二次確認。
+
+Audit / logging:
+
+- 所有被拒的嘗試（403）應記錄 AuditLog {actorId, action:'application_attempt', targetType:'animal', targetId, reason, timestamp, actingAs?}。
+- 成功建立的 Application 必須包含 applicantRole、actingAs 與 shelterContext（若有），以利稽核與後續追蹤。
+
+QA tests (追加):
+
+- Forbidden case A: Shelter 帳號對自家 shelter 的 animal 提交 -> API 回 403 並在 AuditLog 建一筆 attempt 記錄。
+- Forbidden case B: Owner 對自己刊登的 animal 提交 -> API 回 403，UI 應隱藏申請按鈕或顯示禁止訊息。
+- Dual-role: 同一帳號在 actingAs=PERSONAL 與 actingAs=SHELTER 下行為不同，測試需驗證 actingAs 欄位被正確儲存與稽核。
+
 ---
 
 ### User Story 3 - 提出領養申請 (Priority: P1)
@@ -101,41 +133,100 @@ Roles: Member — 僅限角色為 Member 的使用者可提交領養申請；Own
 
 ---
 
-### User Story 4 - 飼主發佈/管理送養（Owner Rehome）(Priority: P1)
 
-描述：飼主（必須為已驗證會員）可建立送養貼文，包含至少一張圖片、描述、健康與醫療摘要；可在會員頁面編輯或下架該送養；管理員審核後變為公開 PUBLISHED。
 
-Roles: Owner, Shelter Staff, Admin — Owner 或被授權的 Shelter Staff 可建立/管理所屬刊登；Admin 可審核或直接管理任何刊登（記錄操作者與變更）。
+### User Story 4 - 個人會員發佈/管理送養（Member Rehome）(Priority: P1)
 
-**Independent Test**: 飼主建立送養後紀錄狀態為 SUBMITTED；管理員在後台批准後狀態變更為 PUBLISHED，前台可見。
+描述：個人會員（Member，經系統驗證後）可建立單筆送養刊登，包含至少一張圖片、描述、健康與醫療摘要；在「我的刊登」頁可逐筆編輯或下架該刊登；管理員審核後刊登變為公開 PUBLISHED。
+
+Roles: Member, Admin — 個人 Member 僅能建立/管理自己所屬的刊登；Admin 可審核或直接管理任何刊登（記錄操作者與變更）。
+
+**Independent Test**: 個人 Member 建立送養後紀錄狀態為 SUBMITTED；管理員在後台批准後狀態變更為 PUBLISHED，且在前台可見。
 
 **Acceptance Scenarios**:
 
-1. **Given**: 飼主完成發布且上傳圖片， **When**: 提交， **Then**: 產生 SUBMITTED 紀錄並通知管理員。
-2. **Given**: 飼主需要修改公開資訊， **When**: 在個人送養列表選擇編輯， **Then**: 可更新文字與圖片（圖片需重新上傳或標記保留）。
+1. **Given**: 個人 Member 完成發布且上傳圖片， **When**: 提交， **Then**: 產生 SUBMITTED 紀錄並通知管理員。
+2. **Given**: Member 需要修改公開資訊， **When**: 在個人「我的刊登」列表選擇編輯， **Then**: 可更新文字與圖片（圖片需重新上傳或標記保留）。
 
 **Edge cases**:
-- 若送養被拒，飼主會收到拒絕理由並可重新提交。
-- 若送養中已有正在審核的領養申請，飼主下架或刪除時需提示後續影響。
+
+- 若送養被拒，Member 會收到拒絕理由並可重新提交。
+- 若送養中已有正在審核的領養申請，Member 下架或刪除時需提示後續影響（例如通知已提交申請者）。
 
 ---
 
-### User Story 5 - 飼主審核（收養者選擇）(Priority: P2)
+### User Story 5 - 收容所刊登與機構管理（Shelter Rehome & Dashboard） (Priority: P1)
 
-描述：當有會員對飼主的已通過送養動物提出領養申請時，飼主可在自己的送養管理頁檢視所有申請紀錄、查看申請者資料摘要（聯絡資訊視權限與流程揭露），並將其中一筆標記為 "同意面談" 或直接標記為 "接受" 或 "拒絕"（此操作會更新申請狀態並觸發通知 (email/SMS)）。單一已通過送養在任何時間只允許一筆處於審核中。
+描述：收容所（Shelter）以機構身份由單一負責人操作，支援批次上傳、工作指派與報表匯出等功能（注意：本版本不支援收容所內的成員邀請或多帳號協作）。收容所刊登應與個人 Owner 的刊登分開呈現並標記為機構來源（例如顯示收容所名稱與機構徽章）。
 
-Roles: Owner, Shelter Staff, Admin — 只有擁有該刊登管理權的 Owner 或 Shelter Staff 可執行審核/狀態變更；Admin 可介入或覆核操作，所有變更皆需寫入 audit log。
+Roles: Shelter, Admin — Shelter 帳號由單一負責人操作，Admin 可查核與介入。
 
-**Independent Test**: 飼主在送養管理頁成功對某筆申請做狀態更新（例如設為 UNDER_REVIEW 或 APPROVED），且更新在前台會員申請頁面同步顯示。
+**Independent Test**: Shelter 帳號能夠透過 /shelters/{id}/animals/batch 上傳一個含 20 筆動物的 CSV，系統回傳 jobId（202 Accepted），背景工作完成後建立動物並更新 job 狀態與匯入統計；Shelter 操作者能在儀表板查看並處理該 shelter 的申請清單。
 
 **Acceptance Scenarios**:
 
-1. **Given**: 多筆申請存在， **When**: 飼主選擇一筆標記為 UNDER_REVIEW， **Then**: 其他申請自動維持 PENDING/WAITING，直到該結果為 REJECTED 才能啟動下一筆審核。
-2. **Given**: 飼主接受申請， **When**: 點選 ACCEPT， **Then**: 申請狀態變為 APPROVED 並發送通知給申請者與管理員。
+1. **Given**: Shelter 操作者上傳 CSV/JSON 到 POST /shelters/{id}/animals/batch， **When**: 上傳成功， **Then**: 系統回傳 jobId（202 Accepted），背景工作完成後建立動物並更新匯入統計。
+
+2. **Given**: Shelter 操作者需要指派某申請給外部聯絡人或管理員， **When**: 在儀表板中標示 assignee 或發出通知， **Then**: 系統儲存指派紀錄並更新 Application.assigneeId（若為外部人員，則以該外部人員的帳號識別）。
+
+3. **Given**: Shelter 帳號同時被多名人員共用（例如由不同人透過共同帳密或 SSO 存取）， **When**: 多人同時處理申請， **Then**: 系統應以 assignment/lock 機制避免同一申請被重複處理（建議在後端使用 optimistic locking 或 assignment workflow）。
 
 **Edge cases**:
-- 飼主誤操作：提供確認對話框與操作回滾窗口（soft undo）在短時間內。
-- 若申請者被封鎖或已刪除帳號，顯示適當錯誤與處理流程。
+
+- 若 Shelter 尚未完成驗證或被暫停：其刊登可能設為限制可見或標記為待驗證，直至管理員核准。
+- 批次匯入失敗部分紀錄：系統需提供錯誤報表與可重試的失敗清單。
+
+**Tests / QA checks**:
+
+- Permission: Shelter 帳號嘗試修改屬於其他 shelter 的動物應回傳 403。
+- Bulk import: 上傳 50 筆樣本檔案後監控 job 狀態並驗證成功建立筆數與錯誤清單。
+
+**Notes**: 本版本假定 Shelter 為單一負責人帳號；若未來需支援正式的多成員機構管理，將在後續迭代引入 invite/roles 機制與 shelterMemberships 關聯。
+
+---
+
+
+### User Story 5 - 飼主 / 收容所 審核（收養者選擇）(Priority: P2)
+
+描述：當會員對已刊登的動物提出領養申請時，負責該刊登的審核人（個人 Owner 或被授權的 Shelter / Shelter 操作者）可在管理頁檢視該動物的申請清單、查看申請者摘要與問卷內容，並對申請進行流程性標記（如 UNDER_REVIEW、ACCEPTED、REJECTED）。審核流程需支援「指派 (assign)」、「鎖定 (lock)」與「覆核 (escalation)」，以避免多人同時審核造成競爭狀態。
+
+Roles: Owner, Shelter, Admin —
+
+- Owner（個人飼主）: 對自己刊登的動物執行審核動作（查看申請詳情、標記 UNDER_REVIEW / ACCEPTED / REJECTED、提供審核備註）；Owner 不支援跨帳號指派多人處理。
+-- Shelter（收容所）: 以 Shelter 帳號（單一負責人）身份操作，支援指派申請給外部聯絡人或在儀表板中處理申請，並能批次更新狀態（視平台設定）。
+- Admin（平台管理員）: 可介入或覆核任意申請、解除鎖定、查看完整 audit log，並在需要時強制更改狀態或停權異常帳號。
+
+**Independent Test**: 審核人可在其管理介面將某筆申請標為 UNDER_REVIEW，該狀態立即反映於申請者的「我的申請」頁；Shelter Manager 可將申請指派給特定 staff，並在該 staff 的任務清單看到被指派的項目。
+
+**Acceptance Scenarios**:
+
+1. **Given**: 多筆申請存在， **When**: 審核人（Owner 或 Shelter / Shelter 操作者）選擇一筆標記為 UNDER_REVIEW， **Then**: 系統應記錄該操作者與時間，並將該筆申請狀態更新為 UNDER_REVIEW；系統應阻止其他人同時將另一筆設定為同一時段的 UNDER_REVIEW（可透過 assignment 或 business rule 實作）。
+
+2. **Given**: Shelter Manager 指派某申請給 staffA， **When**: staffA 接受任務並在其儀表板處理， **Then**: Application.assigneeId = staffA.id，處理紀錄記錄 assignee 與處理時間；若 staffA 在處理期間離線，Manager 可重新指派。
+
+3. **Given**: Owner 決定接受某位申請者， **When**: Owner 點選 ACCEPT 並填寫交接/面談備註， **Then**: 申請狀態變更為 APPROVED，系統發送通知給申請者與管理員並在 audit log 留存紀錄；同時其他候補申請應收到狀態更新（例如 REMAINING -> REJECTED 或 WAITLISTED，依平台政策）。
+
+4. **Given**: 多名審核人同時嘗試操作同一申請， **When**: 其中一人先完成 ACCEPT， **Then**: 其他人的請求應回傳 409 或顯示已變更狀態，並提供差異說明（who/when）。
+
+**API / Implementation Notes**:
+
+- POST /applications/{id}/review {action: UNDER_REVIEW|ACCEPT|REJECT, notes?, assigneeId?, expectedVersion?} => 後端驗證 actor 對該 application/animal 的權限，採用 optimistic locking (version) 或資料庫鎖定來避免 race condition；回傳 200 + updated Application 或 409 on version conflict。
+- POST /shelters/{id}/applications/{appId}/assign {assigneeId} => 只允許 Shelter Manager/Editor 操作，會在 application 記錄 assigneeId 與 assignedAt。
+- GET /applications?ownerId=...&status=SUBMITTED|UNDER_REVIEW => 審核人與管理員用於列單的 API。
+- Audit: 每次狀態變更都必須寫入 AuditLog {actorId, action, targetType: 'application', targetId, before, after, notes, timestamp, shelterId?}。
+
+**Edge cases**:
+
+- 飼主誤操作：提供確認對話框與短時間內撤銷 (soft undo) 機制，並可在 audit log 中標示回滾原因。
+- 若申請者被停權或刪除帳號：若狀態需變更，審核人應收到警示且流程以手動介入為主（例如系統提示需聯絡管理員）。
+- 若 assignee 帶離職或帳號停用：Manager 可重新指派或由 Admin 介入。
+
+**Tests / QA checks**:
+
+- Permission: 使用 Shelter Editor token 嘗試修改非所屬 shelter 的 application -> 回傳 403。
+- Concurrency: 同步發起兩次 POST /applications/{id}/review（expectedVersion 相同）-> 其中一個請求回傳 200，另一回傳 409 並附差異資訊。
+- Audit: 對 5 次不同的狀態變更檢查 AuditLog 是否都包含 actorId、before/after、timestamp 與 notes（如有）。
+
 
 ---
 
@@ -162,7 +253,7 @@ Roles: Admin — 僅限 Admin（含分級）可存取此後台操作；針對敏
 
 描述：會員可在個人頁面查看與管理自己提交的領養與送養申請，編輯可編輯的草稿、查看審核歷程、下載申請表、以及接收與查看通知紀錄（email/SMS）。如需直接聯絡，使用者將透過已核准或公開的聯絡資訊進行聯繫；平台於 MVP 階段不提供即時站內聊天功能。
 
-Roles: Member, Owner, Shelter Staff, Admin — Member 可管理個人申請（編輯/撤回/下載）且僅能存取自己的申請；Owner/Shelter 與 Admin 對其相關的申請可見摘要與執行審核權限（視權限）。
+Roles: Member, Owner, Shelter, Admin — Member 可管理個人申請（編輯/撤回/下載）且僅能存取自己的申請；Owner/Shelter 與 Admin 對其相關的申請可見摘要與執行審核權限（視權限）。
 
 **Independent Test**: 會員登入後在「我的申請」看到所有歷史紀錄；可下載某筆申請的 PDF 摘要。
 
@@ -180,7 +271,7 @@ Roles: Member, Owner, Shelter Staff, Admin — Member 可管理個人申請（�
 
 描述：系統在申請狀態變更、審核結果或管理員操作時發送通知；會員可在個人設定選擇通知偏好（email、SMS）。
 
-Roles: All registered roles (Member, Owner, Shelter Staff, Admin) — 所有註冊使用者可設定通知偏好；系統會依偏好對事件發送 email 或 SMS。訪客不可設定偏好但在必要情況可透過 email/phone 被聯絡（若提供）。
+Roles: All registered roles (Member, Owner, Shelter, Admin) — 所有註冊使用者可設定通知偏好；系統會依偏好對事件發送 email 或 SMS。訪客不可設定偏好但在必要情況可透過 email/phone 被聯絡（若提供）。
 
 **Independent Test**: 當管理員在後台將申請標記為 APPROVED，申請者在 1 分鐘內收到 email 通知（若偏好設為 email）。
 
@@ -202,7 +293,7 @@ Roles: All registered roles (Member, Owner, Shelter Staff, Admin) — 所有註�
 
 描述：管理員、收容所工作人員與飼主皆可為動物新增、編輯或附加醫療紀錄（recordType、date、provider、details、attachments），但所有新增或修改的紀錄初始為 unverified 狀態；系統須保留審核歷程（verified, verifiedBy, verifiedAt）與變更日誌，管理員可驗證 (verify) 或拒絕該紀錄。醫療紀錄的摘要會在動物詳情頁展示，完整紀錄僅顯示給有權限的使用者或在經過審核後公開。
 
-Roles: Owner, Shelter Staff, Admin — Owner 與 Shelter Staff 可新增/更新其所屬動物的醫療紀錄（狀態初為 unverified）；Admin 負責 verify/reject 並保留審計紀錄；公眾僅見已驗證摘要。
+Roles: Owner, Shelter, Admin — Owner 與 Shelter（收容所操作人）可新增/更新其所屬動物的醫療紀錄（狀態初為 unverified）；Admin 負責 verify/reject 並保留審計紀錄；公眾僅見已驗證摘要。
 
 **Why this priority**：醫療紀錄直接影響領養者對動物健康與適配性的判斷，為配對可靠性與平台信任的關鍵要素。
 
