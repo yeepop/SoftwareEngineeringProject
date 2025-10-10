@@ -312,180 +312,97 @@ Generated on 2025-10-10 by automation — review fields and adapt to your DB con
 
 ```mermaid
 erDiagram
-    %% =======================
-    %% Tables / Entities
-    %% =======================
     USER {
-        STRING id PK
-        STRING email UNIQUE
-        STRING username
-        STRING phoneNumber
-        STRING firstName
-        STRING lastName
-        STRING role
-        BOOLEAN verified
-        STRING primaryShelterId
-        STRING profilePhotoUrl
-        TEXT settings
-        DATETIME createdAt
-        DATETIME updatedAt
-        DATETIME deletedAt
+        string id PK
+        string username
+        string email
+        string passwordHash
+        string role
+        boolean verifiedEmail
+        datetime createdAt
+        datetime updatedAt
     }
 
     SHELTER {
-        STRING id PK
-        STRING name
-        STRING slug UNIQUE
-        STRING contactEmail
-        STRING contactPhone
-        TEXT address
-        BOOLEAN verified
-        STRING primaryAccountUserId
-        TEXT metadata
-        DATETIME createdAt
-        DATETIME updatedAt
-        DATETIME deletedAt
+        string id PK
+        string name
+        json contactInfo
+        datetime createdAt
+        datetime updatedAt
     }
 
-    ANIMAL {
-        STRING id PK
-        STRING name
-        STRING species
-        STRING breed
-        STRING sex
-        DATETIME dob
-        STRING description
-        STRING status
-        STRING shelterId
-        STRING ownerId
-        STRING medicalSummary
-        STRING createdBy
-        DATETIME createdAt
-        DATETIME updatedAt
-        DATETIME deletedAt
+  ANIMAL {
+    %% ownerId references a GENERAL_MEMBER when present; for shelter-owned animals prefer shelterId
+    string id PK
+    string ownerId FK
+    string shelterId FK
+    string name
+    string species
+    string breed
+    string sex
+    int ageMonths
+    string description
+    string status
+    json location
+    datetime createdAt
+    datetime updatedAt
+    datetime deletedAt
     }
 
-    ANIMALIMAGE {
-        STRING id PK
-        STRING animalId
-        STRING storageKey
-        STRING url
-        STRING mimeType
-        INT width
-        INT height
-        INT order
-        DATETIME createdAt
-    }
+  ANIMALIMAGE {
+    string id PK
+    string ownerType
+    string ownerId
+    string url
+    string altText
+    datetime createdAt
+  }
 
     APPLICATION {
-        STRING id PK
-        STRING applicantId
-        STRING animalId
-        STRING type
-        STRING status
-        DATETIME submittedAt
-        DATETIME reviewedAt
-        STRING reviewNotes
-        STRING assigneeId
-        INT version
-        STRING idempotencyKey
-        TEXT attachments
-        DATETIME createdAt
-        DATETIME updatedAt
-        DATETIME deletedAt
+        string id PK
+        string type
+        string animalId FK
+        string applicantId FK
+        json answers
+        string status
+        datetime submittedAt
+        datetime reviewedAt
     }
 
-    MEDICALRECORD {
-        STRING id PK
-        STRING animalId
-        STRING recordType
-        DATETIME date
-        STRING provider
-        STRING details
-        TEXT attachments
-        BOOLEAN verified
-        STRING verifiedBy
-        STRING createdBy
-        DATETIME createdAt
-        DATETIME updatedAt
-        DATETIME deletedAt
+    MEDICAL_RECORD {
+        string id PK
+        string animalId FK
+        string recordType
+        date date
+        string provider
+        string details
+        json attachments
+        boolean verified
+        string verifiedBy FK
+        string createdBy FK
+        datetime createdAt
     }
 
-    ATTACHMENT {
-        STRING id PK
-        STRING ownerType
-        STRING ownerId
-        STRING storageKey
-        STRING url
-        STRING filename
-        STRING mimeType
-        INT size
-        STRING createdBy
-        DATETIME createdAt
-        DATETIME deletedAt
+    AUDIT_LOG {
+        string id PK
+        string actorId FK
+        string action
+        string targetType
+        string targetId
+        json before
+        json after
+        datetime timestamp
     }
 
-    NOTIFICATION {
-        STRING id PK
-        STRING recipientId
-        STRING actorId
-        STRING type
-        TEXT payload
-        BOOLEAN read
-        DATETIME createdAt
-        DATETIME deliveredAt
-        STRING externalDeliveryStatus
-        INT retryCount
-        STRING lastError
-    }
-
-    JOB {
-        STRING id PK
-        STRING type
-        STRING status
-        TEXT payload
-        TEXT resultSummary
-        STRING createdBy
-        DATETIME createdAt
-        DATETIME startedAt
-        DATETIME finishedAt
-        INT attempts
-    }
-
-    AUDITLOG {
-        STRING id PK
-        STRING actorId
-        STRING action
-        STRING targetType
-        STRING targetId
-        TEXT before
-        TEXT after
-        STRING notes
-        DATETIME timestamp
-        STRING shelterId
-    }
-
-    %% =======================
-    %% Relationships
-    %% =======================
-    USER ||--o{ APPLICATION : "applicant_applications"
-    USER ||--o{ APPLICATION : "assignee_applications"
-    USER ||--o{ ANIMAL : "owner_animals"
-    USER ||--o{ MEDICALRECORD : "creator_records"
-    USER ||--o{ MEDICALRECORD : "verifier_records"
-    USER ||--o{ NOTIFICATION : "recipient_notifications"
-    USER ||--o{ JOB : "jobs_created"
-    USER ||--o{ AUDITLOG : "actor_auditlogs"
-
-    SHELTER ||--o{ ANIMAL : "animals"
-    SHELTER ||--o{ AUDITLOG : "shelter_auditlogs"
-
-    ANIMAL ||--o{ ANIMALIMAGE : "images"
-    ANIMAL ||--o{ MEDICALRECORD : "medical_records"
-    ANIMAL ||--o{ APPLICATION : "applications"
-
-    ANIMAL ||--o{ ATTACHMENT : "attachments"
-
+    USER ||--o{ ANIMAL : owns
+    SHELTER ||--o{ ANIMAL : houses
+  ANIMAL ||--o{ ANIMALIMAGE : has
+    ANIMAL ||--o{ APPLICATION : has
+    USER ||--o{ APPLICATION : applies
+    ANIMAL ||--o{ MEDICAL_RECORD : has
+    USER ||--o{ MEDICAL_RECORD : creates
+    USER ||--o{ AUDIT_LOG : performs
+  ANIMAL ||--o{ ANIMALIMAGE : "attachments"
 ```
 
 ---

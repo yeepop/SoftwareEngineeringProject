@@ -9,156 +9,156 @@ The Mermaid ER diagram below was generated from `schema.prisma`. It shows models
 erDiagram
     %% Models
     USER {
-      STRING id PK
-      STRING email UNIQUE
-      STRING username
-      STRING phoneNumber
-      STRING firstName
-      STRING lastName
-      STRING role
-      BOOLEAN verified
-      STRING primaryShelterId
-      STRING profilePhotoUrl
-      JSON settings
-      DATETIME createdAt
-      DATETIME updatedAt
-      DATETIME deletedAt
+      String id %% PK
+      String email %% UNIQUE
+      String username
+      String phoneNumber
+      String firstName
+      String lastName
+      String role
+      Boolean verified
+      String primaryShelterId
+      String profilePhotoUrl
+      String settings %% JSON
+      Date createdAt
+      Date updatedAt
+      Date deletedAt
     }
 
     SHELTER {
-      STRING id PK
-      STRING name
-      STRING slug UNIQUE
-      STRING contactEmail
-      STRING contactPhone
-      JSON address
-      BOOLEAN verified
-      STRING primaryAccountUserId
-      JSON metadata
-      DATETIME createdAt
-      DATETIME updatedAt
-      DATETIME deletedAt
+      String id %% PK
+      String name
+      String slug %% UNIQUE
+      String contactEmail
+      String contactPhone
+      String address %% JSON
+      Boolean verified
+      String primaryAccountUserId
+      String metadata %% JSON
+      Date createdAt
+      Date updatedAt
+      Date deletedAt
     }
 
     ANIMAL {
-      STRING id PK
-      STRING name
-      STRING species
-      STRING breed
-      STRING sex
-      DATETIME dob
-      STRING description
-      STRING status
-      STRING shelterId
-      STRING ownerId
-      STRING medicalSummary
-      STRING createdBy
-      DATETIME createdAt
-      DATETIME updatedAt
-      DATETIME deletedAt
+      String id %% PK
+      String name
+      String species
+      String breed
+      String sex
+      Date dob
+      String description
+      String status
+      String shelterId %% FK
+      String ownerId %% FK
+      String medicalSummary
+      String createdBy
+      Date createdAt
+      Date updatedAt
+      Date deletedAt
     }
 
     ANIMALIMAGE {
-      STRING id PK
-      STRING animalId FK
-      STRING storageKey
-      STRING url
-      STRING mimeType
-      INT width
-      INT height
-      INT order
-      DATETIME createdAt
+      String id %% PK
+      String animalId %% FK
+      String storageKey
+      String url
+      String mimeType
+      Int width
+      Int height
+      Int order
+      Date createdAt
     }
 
     APPLICATION {
-      STRING id PK
-      STRING applicantId FK
-      STRING animalId FK
-      STRING type
-      STRING status
-      DATETIME submittedAt
-      DATETIME reviewedAt
-      STRING reviewNotes
-      STRING assigneeId FK
-      INT version
-      STRING idempotencyKey
-      JSON attachments
-      DATETIME createdAt
-      DATETIME updatedAt
-      DATETIME deletedAt
+      String id %% PK
+      String applicantId %% FK
+      String animalId %% FK
+      String type
+      String status
+      Date submittedAt
+      Date reviewedAt
+      String reviewNotes
+      String assigneeId %% FK
+      Int version
+      String idempotencyKey
+      String attachments %% JSON
+      Date createdAt
+      Date updatedAt
+      Date deletedAt
     }
 
     MEDICALRECORD {
-      STRING id PK
-      STRING animalId FK
-      STRING recordType
-      DATETIME date
-      STRING provider
-      STRING details
-      JSON attachments
-      BOOLEAN verified
-      STRING verifiedBy
-      STRING createdBy
-      DATETIME createdAt
-      DATETIME updatedAt
-      DATETIME deletedAt
+      String id %% PK
+      String animalId %% FK
+      String recordType
+      Date date
+      String provider
+      String details
+      String attachments %% JSON
+      Boolean verified
+      String verifiedBy %% FK
+      String createdBy %% FK
+      Date createdAt
+      Date updatedAt
+      Date deletedAt
     }
 
     ATTACHMENT {
-      STRING id PK
-      STRING ownerType
-      STRING ownerId
-      STRING storageKey
-      STRING url
-      STRING filename
-      STRING mimeType
-      INT size
-      STRING createdBy
-      DATETIME createdAt
-      DATETIME deletedAt
+      String id %% PK
+      String ownerType
+      String ownerId %% Generic FK
+      String storageKey
+      String url
+      String filename
+      String mimeType
+      Int size
+      String createdBy %% FK
+      Date createdAt
+      Date deletedAt
     }
 
     NOTIFICATION {
-      STRING id PK
-      STRING recipientId FK
-      STRING actorId
-      STRING type
-      JSON payload
-      BOOLEAN read
-      DATETIME createdAt
-      DATETIME deliveredAt
-      STRING externalDeliveryStatus
-      INT retryCount
-      STRING lastError
+      String id %% PK
+      String recipientId %% FK
+      String actorId %% FK
+      String type
+      String payload %% JSON
+      Boolean read
+      Date createdAt
+      Date deliveredAt
+      String externalDeliveryStatus
+      Int retryCount
+      String lastError
     }
 
     JOB {
-      STRING id PK
-      STRING type
-      STRING status
-      JSON payload
-      JSON resultSummary
-      STRING createdBy
-      DATETIME createdAt
-      DATETIME startedAt
-      DATETIME finishedAt
-      INT attempts
+      String id %% PK
+      String type
+      String status
+      String payload %% JSON
+      String resultSummary %% JSON
+      String createdBy %% FK
+      Date createdAt
+      Date startedAt
+      Date finishedAt
+      Int attempts
     }
 
     AUDITLOG {
-      STRING id PK
-      STRING actorId
-      STRING action
-      STRING targetType
-      STRING targetId
-      JSON before
-      JSON after
-      STRING notes
-      DATETIME timestamp
-      STRING shelterId
+      String id %% PK
+      String actorId %% FK
+      String action
+      String targetType
+      String targetId
+      String before %% JSON
+      String after %% JSON
+      String notes
+      Date timestamp
+      String shelterId %% FK
     }
 
-    %% Relationships (one-to-many where appropriate)
+    %% Relationships
     USER ||--o{ APPLICATION : "applicant_applications"
     USER ||--o{ APPLICATION : "assignee_applications"
     USER ||--o{ ANIMAL : "owner_animals"
@@ -174,6 +174,7 @@ erDiagram
     ANIMAL ||--o{ ANIMALIMAGE : "images"
     ANIMAL ||--o{ MEDICALRECORD : "medical_records"
     ANIMAL ||--o{ APPLICATION : "applications"
+
 
     %% NOTE: ATTACHMENT is a generic owner-typed table (ownerType + ownerId) — not a strict FK in Prisma schema
 
