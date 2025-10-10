@@ -332,20 +332,21 @@ erDiagram
     }
 
   ANIMAL {
+    %% ownerId references a GENERAL_MEMBER when present; for shelter-owned animals prefer shelterId
     string id PK
-    string ownerId FK /* references a GENERAL_MEMBER when present; for shelter-owned animals prefer shelterId */
-        string shelterId FK
-        string name
-        string species
-        string breed
-        string sex
-        int ageMonths
-        string description
-        string status
-        json location
-        datetime createdAt
-        datetime updatedAt
-        datetime deletedAt
+    string ownerId FK
+    string shelterId FK
+    string name
+    string species
+    string breed
+    string sex
+    int ageMonths
+    string description
+    string status
+    json location
+    datetime createdAt
+    datetime updatedAt
+    datetime deletedAt
     }
 
   ANIMALIMAGE {
@@ -516,11 +517,3 @@ A ||--o{ I : attachments
 ```
 
 ---
-
-## 建議與下一步
-- 若需要，我可以：
-  - 將上述 PlantUML/Mermaid 轉成 SVG/PNG 並放到 `specs/002-title-description-project/assets/`。
-  - 直接根據 ERD 產生完整 `schema.prisma`（包含索引與 foreign key 約束）。
-  - 產生 SQL migration 模板（Postgres）與初始 migration 指令。
-
-告訴我你想要哪一個，我會接著把圖檔或 migration 加到分支 `002-title-description-project`。
