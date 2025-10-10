@@ -7,10 +7,9 @@ The Mermaid ER diagram below was generated from `schema.prisma`. It shows models
 
 ```mermaid
 erDiagram
-    %% Models
     USER {
-      String id %% PK
-      String email %% UNIQUE
+      String id_PK
+      String email_UNIQUE
       String username
       String phoneNumber
       String firstName
@@ -19,29 +18,29 @@ erDiagram
       Boolean verified
       String primaryShelterId
       String profilePhotoUrl
-      String settings %% JSON
+      String settings_JSON
       Date createdAt
       Date updatedAt
       Date deletedAt
     }
 
     SHELTER {
-      String id %% PK
+      String id_PK
       String name
-      String slug %% UNIQUE
+      String slug_UNIQUE
       String contactEmail
       String contactPhone
-      String address %% JSON
+      String address_JSON
       Boolean verified
       String primaryAccountUserId
-      String metadata %% JSON
+      String metadata_JSON
       Date createdAt
       Date updatedAt
       Date deletedAt
     }
 
     ANIMAL {
-      String id %% PK
+      String id_PK
       String name
       String species
       String breed
@@ -49,8 +48,8 @@ erDiagram
       Date dob
       String description
       String status
-      String shelterId %% FK
-      String ownerId %% FK
+      String shelterId_FK
+      String ownerId_FK
       String medicalSummary
       String createdBy
       Date createdAt
@@ -59,8 +58,8 @@ erDiagram
     }
 
     ANIMALIMAGE {
-      String id %% PK
-      String animalId %% FK
+      String id_PK
+      String animalId_FK
       String storageKey
       String url
       String mimeType
@@ -71,59 +70,59 @@ erDiagram
     }
 
     APPLICATION {
-      String id %% PK
-      String applicantId %% FK
-      String animalId %% FK
+      String id_PK
+      String applicantId_FK
+      String animalId_FK
       String type
       String status
       Date submittedAt
       Date reviewedAt
       String reviewNotes
-      String assigneeId %% FK
+      String assigneeId_FK
       Int version
       String idempotencyKey
-      String attachments %% JSON
+      String attachments_JSON
       Date createdAt
       Date updatedAt
       Date deletedAt
     }
 
     MEDICALRECORD {
-      String id %% PK
-      String animalId %% FK
+      String id_PK
+      String animalId_FK
       String recordType
       Date date
       String provider
       String details
-      String attachments %% JSON
+      String attachments_JSON
       Boolean verified
-      String verifiedBy %% FK
-      String createdBy %% FK
+      String verifiedBy_FK
+      String createdBy_FK
       Date createdAt
       Date updatedAt
       Date deletedAt
     }
 
     ATTACHMENT {
-      String id %% PK
+      String id_PK
       String ownerType
-      String ownerId %% Generic FK
+      String ownerId_FK
       String storageKey
       String url
       String filename
       String mimeType
       Int size
-      String createdBy %% FK
+      String createdBy_FK
       Date createdAt
       Date deletedAt
     }
 
     NOTIFICATION {
-      String id %% PK
-      String recipientId %% FK
-      String actorId %% FK
+      String id_PK
+      String recipientId_FK
+      String actorId_FK
       String type
-      String payload %% JSON
+      String payload_JSON
       Boolean read
       Date createdAt
       Date deliveredAt
@@ -133,12 +132,12 @@ erDiagram
     }
 
     JOB {
-      String id %% PK
+      String id_PK
       String type
       String status
-      String payload %% JSON
-      String resultSummary %% JSON
-      String createdBy %% FK
+      String payload_JSON
+      String resultSummary_JSON
+      String createdBy_FK
       Date createdAt
       Date startedAt
       Date finishedAt
@@ -146,16 +145,16 @@ erDiagram
     }
 
     AUDITLOG {
-      String id %% PK
-      String actorId %% FK
+      String id_PK
+      String actorId_FK
       String action
       String targetType
       String targetId
-      String before %% JSON
-      String after %% JSON
+      String before_JSON
+      String after_JSON
       String notes
       Date timestamp
-      String shelterId %% FK
+      String shelterId_FK
     }
 
     %% Relationships
@@ -175,8 +174,6 @@ erDiagram
     ANIMAL ||--o{ MEDICALRECORD : "medical_records"
     ANIMAL ||--o{ APPLICATION : "applications"
 
-
-    %% NOTE: ATTACHMENT is a generic owner-typed table (ownerType + ownerId) — not a strict FK in Prisma schema
 
 ```
 
