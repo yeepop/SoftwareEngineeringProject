@@ -1,3 +1,228 @@
+# ER Diagram & Entity Reference — 貓狗領養平台
+
+This document contains the Entity-Relationship (ER) reference for the adoption platform. It includes canonical entity tables, attributes, relationships and a Mermaid diagram you can render locally or in supported viewers.
+
+Notes:
+- The schema below is implementation-oriented and designed to map cleanly to Prisma/Postgres.
+- `VISITOR` is a non-persisted concept (anonymous session). Persisted roles: GENERAL_MEMBER, SHELTER_MEMBER, ADMIN.
+
+## Entities & Attributes (summary)
+
+### User
+- id: UUID PK
+- email: String (unique, indexed)
+- username: String
+- phoneNumber: String
+- firstName: String
+- lastName: String
+- role: enum {GENERAL_MEMBER, SHELTER_MEMBER, ADMIN}
+- verified: Boolean
+- primaryShelterId: UUID? (FK -> Shelter.id) — optional link for single-account shelters
+- profilePhotoUrl: String?
+- settings: JSONB?
+- createdAt: DateTime
+- updatedAt: DateTime
+- deletedAt: DateTime? (soft delete)
+
+### Shelter
+- id: UUID PK
+- name: String
+- slug: String (unique)
+- contactEmail: String
+- contactPhone: String
+- address: JSON (street, city, region, postal)
+- verified: Boolean
+- primaryAccountUserId: UUID FK -> User.id
+- metadata: JSONB?
+- createdAt, updatedAt, deletedAt
+
+### Animal
+- id: UUID PK
+- name: String
+- species: enum {CAT, DOG}
+- breed: String?
+- sex: enum {MALE, FEMALE, UNKNOWN}
+- dob: Date? (or age:int)
+- description: Text
+- status: enum {DRAFT, SUBMITTED, PUBLISHED, RETIRED}
+- shelterId: UUID? FK -> Shelter.id
+- ownerId: UUID? FK -> User.id
+- medicalSummary: Text?
+- createdBy: UUID FK -> User.id
+- createdAt, updatedAt, deletedAt
+
+### AnimalImage
+- id: UUID PK
+- animalId: UUID FK -> Animal.id
+- storageKey: String
+- url: String
+- mimeType: String
+- width: Int, height: Int
+- order: Int
+- createdAt
+
+### Application
+- id: UUID PK
+- applicantId: UUID FK -> User.id
+- animalId: UUID FK -> Animal.id
+- type: enum {ADOPTION, REHOME}
+- status: enum {PENDING, UNDER_REVIEW, APPROVED, REJECTED, WITHDRAWN}
+- submittedAt: DateTime
+- reviewedAt: DateTime?
+- reviewNotes: Text?
+- assigneeId: UUID? FK -> User.id
+- version: Int (optimistic locking)
+- idempotencyKey: String?
+- attachments: JSONB? (or relation to Attachment)
+- createdAt, updatedAt, deletedAt
+
+### MedicalRecord
+- id: UUID PK
+- animalId: UUID FK -> Animal.id
+- recordType: enum {TREATMENT, CHECKUP, VACCINE, SURGERY, OTHER}
+- date: Date
+- provider: String
+- details: Text
+- attachments: JSONB? (or FK to Attachment)
+- verified: Boolean
+- verifiedBy: UUID? FK -> User.id
+- verifiedAt: DateTime?
+- createdBy: UUID FK -> User.id
+- createdAt, updatedAt, deletedAt
+
+### Attachment
+- id: UUID PK
+- ownerType: enum {animal, application, medical_record, user, shelter, notification}
+- ownerId: UUID
+- storageKey: String
+- url: String
+- filename: String
+- mimeType: String
+- size: Int
+- createdBy: UUID
+- createdAt, deletedAt
+
+### Notification
+- id: UUID PK
+- recipientId: UUID FK -> User.id
+- actorId: UUID? FK -> User.id
+- type: String
+- payload: JSONB
+- read: Boolean (default false)
+- createdAt: DateTime
+- deliveredAt: DateTime?
+- externalDeliveryStatus: enum {NOT_APPLICABLE, PENDING, SENT, FAILED}
+- retryCount: Int
+- lastError: Text?
+
+### Job
+- id: UUID PK
+- type: String (e.g., shelter:animals:import, data:export)
+- status: enum {PENDING, RUNNING, SUCCEEDED, FAILED}
+- payload: JSONB
+- resultSummary: JSONB?
+- createdBy: UUID
+- createdAt, startedAt, finishedAt, attempts
+
+### AuditLog
+- id: UUID PK
+- actorId: UUID? FK -> User.id
+- action: String
+- targetType: String
+- targetId: UUID
+- before: JSONB?
+- after: JSONB?
+- notes: Text?
+- timestamp: DateTime
+- shelterId: UUID?
+
+
+## Relationships (high level)
+- User 1..* Application (applicantId)
+- Animal 1..* Application (animalId)
+- Shelter 1..* Animal (shelterId)
+- Animal 1..* AnimalImage
+- Animal 1..* MedicalRecord
+- MedicalRecord *..1 User (verifiedBy)
+- User 1..* Notification (recipientId)
+- Job may reference many entities via payload (application ids, file storage keys)
+- AuditLog references actor (User) and target (any entity)
+
+
+## Mermaid ER diagram (renderable)
+
+```mermaid
+erDiagram
+    USER ||--o{ APPLICATION : applies
+    USER ||--o{ NOTIFICATION : receives
+    USER ||--o{ AUDITLOG : acts
+    SHELTER ||--o{ ANIMAL : houses
+    ANIMAL ||--o{ APPLICATION : has
+    ANIMAL ||--o{ ANIMALIMAGE : images
+    ANIMAL ||--o{ MEDICALRECORD : records
+    APPLICATION }o--|| USER : assignee
+    MEDICALRECORD }o--|| USER : verifiedBy
+    JOB ||--o{ APPLICATION : affects
+    AUDITLOG }o--|| USER : actor
+    NOTIFICATION }o--|| USER : recipient
+
+    USER {
+      UUID id PK
+      String email
+      String username
+      String role
+    }
+    SHELTER {
+      UUID id PK
+      String name
+    }
+    ANIMAL {
+      UUID id PK
+      String name
+      String species
+      String status
+    }
+    APPLICATION {
+      UUID id PK
+      UUID applicantId FK
+      UUID animalId FK
+      String status
+    }
+    MEDICALRECORD {
+      UUID id PK
+      UUID animalId FK
+      String recordType
+      Date date
+    }
+    NOTIFICATION {
+      UUID id PK
+      UUID recipientId FK
+      String type
+      JSON payload
+    }
+    JOB {
+      UUID id PK
+      String type
+      String status
+    }
+    AUDITLOG {
+      UUID id PK
+      UUID actorId
+      String action
+      JSON before
+      JSON after
+    }
+
+```
+
+
+## How to use
+- Copy the Mermaid block into a Mermaid renderer (VSCode Mermaid preview, or Mermaid Live Editor) to visualize the ER.
+- You can turn the entity attribute lists into Prisma models — tell me if you want me to generate a full Prisma schema file from these entities.
+
+---
+
+Generated on 2025-10-10 by automation — review fields and adapt to your DB constraints before finalizing.
 # ERD（Entity Relationship Diagram）— 貓狗領養平台
 
 此檔案提供：
