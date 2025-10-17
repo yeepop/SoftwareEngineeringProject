@@ -1,91 +1,167 @@
 erDiagram
     USER {
-        string id PK
-        string username
-        string email
-        string passwordHash
-        string role
-        boolean verifiedEmail
-        datetime createdAt
-        datetime updatedAt
+      String id_PK
+      String email_UNIQUE
+      String username
+      String phoneNumber
+      String firstName
+      String lastName
+      String role
+      Boolean verified
+      String primaryShelterId
+      String profilePhotoUrl
+      JSON settings
+      Date createdAt
+      Date updatedAt
+      Date deletedAt
     }
 
     SHELTER {
-        string id PK
-        string name
-        json contactInfo
-        datetime createdAt
-        datetime updatedAt
+      String id_PK
+      String name
+      String slug_UNIQUE
+      String contactEmail
+      String contactPhone
+      JSON address
+      Boolean verified
+      String primaryAccountUserId_FK
+      JSON metadata
+      Date createdAt
+      Date updatedAt
+      Date deletedAt
     }
 
     ANIMAL {
-        string id PK
-        string ownerId FK
-        string shelterId FK
-        string name
-        string species
-        string breed
-        string sex
-        int ageMonths
-        string description
-        string status
-        json location
-        datetime createdAt
-        datetime updatedAt
-        datetime deletedAt
+      String id_PK
+      String name
+      String species
+      String breed
+      String sex
+      Date dob
+      String description
+      String status
+      String shelterId_FK
+      String ownerId_FK
+      String medicalSummary
+      String createdBy_FK
+      Date createdAt
+      Date updatedAt
+      Date deletedAt
     }
 
-    IMAGE {
-        string id PK
-        string ownerType
-        string ownerId
-        string url
-        string altText
-        datetime createdAt
+    ANIMALIMAGE {
+      String id_PK
+      String animalId_FK
+      String storageKey
+      String url
+      String mimeType
+      Int width
+      Int height
+      Int order
+      Date createdAt
     }
 
     APPLICATION {
-        string id PK
-        string type
-        string animalId FK
-        string applicantId FK
-        json answers
-        string status
-        datetime submittedAt
-        datetime reviewedAt
+      String id_PK
+      String applicantId_FK
+      String animalId_FK
+      String type
+      String status
+      Date submittedAt
+      Date reviewedAt
+      String reviewNotes
+      String assigneeId_FK
+      Int version
+      String idempotencyKey
+      JSON attachments
+      Date createdAt
+      Date updatedAt
+      Date deletedAt
     }
 
-    MEDICAL_RECORD {
-        string id PK
-        string animalId FK
-        string recordType
-        date date
-        string provider
-        string details
-        json attachments
-        boolean verified
-        string verifiedBy FK
-        string createdBy FK
-        datetime createdAt
+    MEDICALRECORD {
+      String id_PK
+      String animalId_FK
+      String recordType
+      Date date
+      String provider
+      String details
+      JSON attachments
+      Boolean verified
+      String verifiedBy_FK
+      String createdBy_FK
+      Date createdAt
+      Date updatedAt
+      Date deletedAt
     }
 
-    AUDIT_LOG {
-        string id PK
-        string actorId FK
-        string action
-        string targetType
-        string targetId
-        json before
-        json after
-        datetime timestamp
+    ATTACHMENT {
+      String id_PK
+      String ownerType
+      String ownerId
+      String storageKey
+      String url
+      String filename
+      String mimeType
+      Int size
+      String createdBy
+      Date createdAt
+      Date deletedAt
     }
 
-    USER ||--o{ ANIMAL : owns
-    SHELTER ||--o{ ANIMAL : houses
-    ANIMAL ||--o{ IMAGE : has
-    ANIMAL ||--o{ APPLICATION : has
-    USER ||--o{ APPLICATION : applies
-    ANIMAL ||--o{ MEDICAL_RECORD : has
-    USER ||--o{ MEDICAL_RECORD : creates
-    USER ||--o{ AUDIT_LOG : performs
-    ANIMAL ||--o{ IMAGE : "attachments"
+    NOTIFICATION {
+      String id_PK
+      String recipientId_FK
+      String actorId_FK
+      String type
+      JSON payload
+      Boolean read
+      Date createdAt
+      Date deliveredAt
+      String externalDeliveryStatus
+      Int retryCount
+      String lastError
+    }
+
+    JOB {
+      String id_PK
+      String type
+      String status
+      JSON payload
+      JSON resultSummary
+      String createdBy_FK
+      Date createdAt
+      Date startedAt
+      Date finishedAt
+      Int attempts
+    }
+
+    AUDITLOG {
+      String id_PK
+      String actorId_FK
+      String action
+      String targetType
+      String targetId
+      JSON before
+      JSON after
+      String notes
+      Date timestamp
+      String shelterId_FK
+    }
+
+    %% Relationships
+    USER ||--o{ APPLICATION : "applicant_applications"
+    USER ||--o{ APPLICATION : "assignee_applications"
+    USER ||--o{ ANIMAL : "owner_animals"
+    USER ||--o{ MEDICALRECORD : "creator_records"
+    USER ||--o{ MEDICALRECORD : "verifier_records"
+    USER ||--o{ NOTIFICATION : "recipient_notifications"
+    USER ||--o{ JOB : "jobs_created"
+    USER ||--o{ AUDITLOG : "actor_auditlogs"
+
+    SHELTER ||--o{ ANIMAL : "animals"
+    SHELTER ||--o{ AUDITLOG : "shelter_auditlogs"
+
+    ANIMAL ||--o{ ANIMALIMAGE : "images"
+    ANIMAL ||--o{ MEDICALRECORD : "medical_records"
+    ANIMAL ||--o{ APPLICATION : "applications"
