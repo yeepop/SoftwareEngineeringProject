@@ -39,6 +39,7 @@ class User(db.Model):
     
     # Relationships
     primary_shelter = db.relationship('Shelter', foreign_keys=[primary_shelter_id], back_populates='primary_users')
+    managed_shelters = db.relationship('Shelter', foreign_keys='Shelter.primary_account_user_id', back_populates='primary_account')
     animals = db.relationship('Animal', foreign_keys='Animal.owner_id', back_populates='owner')
     applications = db.relationship('Application', foreign_keys='Application.applicant_id', back_populates='applicant')
     notifications = db.relationship('Notification', foreign_keys='Notification.recipient_id', back_populates='recipient')

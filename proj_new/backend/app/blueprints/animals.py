@@ -205,3 +205,213 @@ def delete_animal(animal_id):
     return jsonify({
         'message': '動物資料已刪除'
     }), 200
+
+
+# ========== 圖片管理 ==========
+
+@animals_bp.route('/<int:animal_id>/images', methods=['POST'])
+@jwt_required()
+def add_animal_image(animal_id):
+    """
+    新增動物圖片
+    ---
+    """
+    try:
+        current_user_id = int(get_jwt_identity())
+        current_user = User.query.get(current_user_id)
+        
+        animal = Animal.query.filter_by(animal_id=animal_id, deleted_at=None).first()
+        if not animal:
+            abort(404, message='動物不存在')
+        
+        # 權限檢查
+        from app.models.user import UserRole
+        if animal.owner_id != current_user_id and current_user.role != UserRole.ADMIN:
+            abort(403, message='無權限管理此動物的圖片')
+        
+        data = request.get_json()
+        
+        # 驗證必填欄位
+        if not data.get('image_url'):
+            abort(400, message='缺少必填欄位: image_url')
+        
+        # 計算新圖片的順序
+        max_order = db.session.query(db.func.max(AnimalImage.display_order)).filter_by(
+            animal_id=animal_id
+        ).scalar() or 0
+        
+        # 建立圖片記錄
+        image = AnimalImage(
+            animal_id=animal_id,
+            image_url=data['image_url'],
+            display_order=max_order + 1,
+            description=data.get('description')
+        )
+        
+        db.session.add(image)
+        db.session.commit()
+        
+        return jsonify({
+            'message': '圖片已新增',
+            'image': image.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+@animals_bp.route('/<int:animal_id>/images/<int:image_id>', methods=['DELETE'])
+@jwt_required()
+def delete_animal_image(animal_id, image_id):
+    """
+    刪除動物圖片
+    ---
+    """
+    try:
+        current_user_id = int(get_jwt_identity())
+        current_user = User.query.get(current_user_id)
+        
+        animal = Animal.query.filter_by(animal_id=animal_id, deleted_at=None).first()
+        if not animal:
+            abort(404, message='動物不存在')
+        
+        # 權限檢查
+        from app.models.user import UserRole
+        if animal.owner_id != current_user_id and current_user.role != UserRole.ADMIN:
+            abort(403, message='無權限管理此動物的圖片')
+        
+        image = AnimalImage.query.filter_by(
+            image_id=image_id,
+            animal_id=animal_id
+        ).first()
+        
+        if not image:
+            abort(404, message='圖片不存在')
+        
+        db.session.delete(image)
+        db.session.commit()
+        
+        return jsonify({'message': '圖片已刪除'}), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+@animals_bp.route('/<int:animal_id>/images/reorder', methods=['POST'])
+@jwt_required()
+def reorder_animal_images(animal_id):
+    """
+    重新排序動物圖片
+    ---
+    Body: { "image_orders": [{"image_id": 1, "order": 1}, ...] }
+    """
+    try:
+        current_user_id = int(get_jwt_identity())
+        current_user = User.query.get(current_user_id)
+        
+        animal = Animal.query.filter_by(animal_id=animal_id, deleted_at=None).first()
+        if not animal:
+            abort(404, message='動物不存在')
+        
+        # 權限檢查
+        from app.models.user import UserRole
+        if animal.owner_id != current_user_id and current_user.role != UserRole.ADMIN:
+            abort(403, message='無權限管理此動物的圖片')
+        
+        data = request.get_json()
+        image_orders = data.get('image_orders', [])
+        
+        # 更新圖片順序
+        for item in image_orders:
+            image = AnimalImage.query.filter_by(
+                image_id=item['image_id'],
+                animal_id=animal_id
+            ).first()
+            if image:
+                image.display_order = item['order']
+        
+        db.session.commit()
+        
+        return jsonify({'message': '圖片順序已更新'}), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+# ========== 狀態管理 ==========
+
+@animals_bp.route('/<int:animal_id>/publish', methods=['POST'])
+@jwt_required()
+def publish_animal(animal_id):
+    """
+    發布動物 (狀態: DRAFT/SUBMITTED -> PUBLISHED)
+    ---
+    需要管理員權限
+    """
+    try:
+        current_user_id = int(get_jwt_identity())
+        current_user = User.query.get(current_user_id)
+        
+        # 權限檢查
+        from app.models.user import UserRole
+        if current_user.role != UserRole.ADMIN:
+            abort(403, message='需要管理員權限')
+        
+        animal = Animal.query.filter_by(animal_id=animal_id, deleted_at=None).first()
+        if not animal:
+            abort(404, message='動物不存在')
+        
+        if animal.status == AnimalStatus.PUBLISHED:
+            abort(400, message='動物已經是發布狀態')
+        
+        animal.status = AnimalStatus.PUBLISHED
+        db.session.commit()
+        
+        return jsonify({
+            'message': '動物已發布',
+            'animal': animal.to_dict()
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+@animals_bp.route('/<int:animal_id>/retire', methods=['POST'])
+@jwt_required()
+def retire_animal(animal_id):
+    """
+    下架動物 (狀態: PUBLISHED -> RETIRED)
+    ---
+    需要管理員權限或擁有者
+    """
+    try:
+        current_user_id = int(get_jwt_identity())
+        current_user = User.query.get(current_user_id)
+        
+        animal = Animal.query.filter_by(animal_id=animal_id, deleted_at=None).first()
+        if not animal:
+            abort(404, message='動物不存在')
+        
+        # 權限檢查
+        from app.models.user import UserRole
+        if animal.owner_id != current_user_id and current_user.role != UserRole.ADMIN:
+            abort(403, message='無權限下架此動物')
+        
+        if animal.status == AnimalStatus.RETIRED:
+            abort(400, message='動物已經是下架狀態')
+        
+        animal.status = AnimalStatus.RETIRED
+        db.session.commit()
+        
+        return jsonify({
+            'message': '動物已下架',
+            'animal': animal.to_dict()
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
