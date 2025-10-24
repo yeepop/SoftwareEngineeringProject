@@ -1,5 +1,5 @@
 """
-Notifications Blueprint - ?šçŸ¥ä¸­å? API
+Notifications Blueprint - ?ï¿½çŸ¥ä¸­ï¿½? API
 """
 from flask import request, jsonify
 from flask_smorest import Blueprint, abort
@@ -8,33 +8,33 @@ from datetime import datetime
 from app import db
 from app.models import Notification, User
 
-notifications_bp = Blueprint('notifications', __name__, description='?šçŸ¥ä¸­å? API')
+notifications_bp = Blueprint('notifications', __name__, description='?ï¿½çŸ¥ä¸­ï¿½? API')
 
 
 @notifications_bp.route('', methods=['GET'])
 @jwt_required()
 def list_notifications():
     """
-    ?–å??šçŸ¥?—è¡¨
+    ?ï¿½ï¿½??ï¿½çŸ¥?ï¿½è¡¨
     ---
     """
     try:
         current_user_id = int(get_jwt_identity())
         
-        # ?–å??¥è©¢?ƒæ•¸
+        # ?ï¿½ï¿½??ï¿½è©¢?ï¿½æ•¸
         read = request.args.get('read')  # 'true', 'false', or None (all)
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 20, type=int)
         
-        # æ§‹å»º?¥è©¢
+        # æ§‹å»º?ï¿½è©¢
         query = Notification.query.filter_by(recipient_id=current_user_id)
         
-        # ?æ¿¾å·²è?/?ªè?
+        # ?ï¿½æ¿¾å·²ï¿½?/?ï¿½ï¿½?
         if read is not None:
             is_read = read.lower() == 'true'
             query = query.filter_by(read=is_read)
         
-        # ?†é?ä¸¦æ?åº?(?€?°ç??¨å?)
+        # ?ï¿½ï¿½?ä¸¦ï¿½?ï¿½?(?ï¿½?ï¿½ï¿½??ï¿½ï¿½?)
         pagination = query.order_by(Notification.created_at.desc()).paginate(
             page=page, per_page=per_page, error_out=False
         )
@@ -55,7 +55,7 @@ def list_notifications():
 @jwt_required()
 def get_unread_count():
     """
-    ?–å??ªè??šçŸ¥?¸é?
+    ?ï¿½ï¿½??ï¿½ï¿½??ï¿½çŸ¥?ï¿½ï¿½?
     ---
     """
     try:
@@ -78,7 +78,7 @@ def get_unread_count():
 @jwt_required()
 def mark_notification_read(notification_id):
     """
-    æ¨™è??šçŸ¥?ºå·²è®€
+    æ¨™ï¿½??ï¿½çŸ¥?ï¿½å·²è®€
     ---
     """
     try:
@@ -90,7 +90,7 @@ def mark_notification_read(notification_id):
         ).first()
         
         if not notification:
-            abort(404, message='?šçŸ¥ä¸å???)
+            abort(404, message='é€šçŸ¥ä¸å­˜åœ¨')
         
         if not notification.read:
             notification.read = True
@@ -108,7 +108,7 @@ def mark_notification_read(notification_id):
 @jwt_required()
 def mark_all_read():
     """
-    æ¨™è??€?‰é€šçŸ¥?ºå·²è®€
+    æ¨™ï¿½??ï¿½?ï¿½é€šçŸ¥?ï¿½å·²è®€
     ---
     """
     try:
@@ -125,7 +125,7 @@ def mark_all_read():
         db.session.commit()
         
         return jsonify({
-            'message': f'å·²æ?è¨?{updated_count} ?‡é€šçŸ¥?ºå·²è®€',
+            'message': f'å·²ï¿½?ï¿½?{updated_count} ?ï¿½é€šçŸ¥?ï¿½å·²è®€',
             'updated_count': updated_count
         }), 200
         
@@ -138,7 +138,7 @@ def mark_all_read():
 @jwt_required()
 def delete_notification(notification_id):
     """
-    ?ªé™¤?šçŸ¥
+    ?ï¿½é™¤?ï¿½çŸ¥
     ---
     """
     try:
@@ -150,13 +150,13 @@ def delete_notification(notification_id):
         ).first()
         
         if not notification:
-            abort(404, message='?šçŸ¥ä¸å???)
+            abort(404, message='é€šçŸ¥ä¸å­˜åœ¨')
         
         db.session.delete(notification)
         db.session.commit()
         
         return jsonify({
-            'message': '?šçŸ¥å·²åˆª??
+            'message': 'é€šçŸ¥å·²åˆªé™¤'
         }), 200
         
     except Exception as e:

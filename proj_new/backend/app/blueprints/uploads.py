@@ -8,7 +8,7 @@ from datetime import timedelta
 import uuid
 
 from app import db
-from app.models.attachment import Attachment
+from app.models.others import Attachment
 from app.models.user import User
 from config import Config
 
