@@ -35,7 +35,7 @@ def create_app(config_name='development'):
     CORS(app, resources={
         r"/api/*": {
             "origins": app.config['CORS_ORIGINS'],
-            "methods": ["GET", "POST", "PUT", "PATCH", "DELETE"],
+            "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
             "allow_headers": ["Content-Type", "Authorization", "Idempotency-Key"]
         }
     })
@@ -88,23 +88,75 @@ def create_app(config_name='development'):
     @app.route('/readyz')
     def readiness_check():
         try:
-            # 檢查資料庫連接
-            db.session.execute('SELECT 1')
+            # 檢查資料庫連接 (SQLAlchemy 2.0 語法)
+            from sqlalchemy import text
+            db.session.execute(text('SELECT 1'))
             return {'status': 'ready'}, 200
         except Exception as e:
             return {'status': 'not ready', 'error': str(e)}, 503
     
-    # JWT 錯誤處理
+    @app.route('/metrics')
+    def metrics():
+        """
+        Prometheus格式的監控指標端點
+        """
+        from app.models.user import User
+        from app.models.animal import Animal
+        from app.models.application import Application
+        from app.models.others import Job, JobStatus
+        
+        # 收集基本統計
+        user_count = User.query.filter_by(deleted_at=None).count()
+        animal_count = Animal.query.filter_by(deleted_at=None).count()
+        application_count = Application.query.filter_by(deleted_at=None).count()
+        
+        job_pending = Job.query.filter_by(status=JobStatus.PENDING).count()
+        job_running = Job.query.filter_by(status=JobStatus.RUNNING).count()
+        job_failed = Job.query.filter_by(status=JobStatus.FAILED).count()
+        job_succeeded = Job.query.filter_by(status=JobStatus.SUCCEEDED).count()
+        
+        # Prometheus格式輸出
+        metrics_text = f"""# HELP pet_adoption_users_total Total number of users
+# TYPE pet_adoption_users_total gauge
+pet_adoption_users_total {user_count}
+
+# HELP pet_adoption_animals_total Total number of animals
+# TYPE pet_adoption_animals_total gauge
+pet_adoption_animals_total {animal_count}
+
+# HELP pet_adoption_applications_total Total number of applications
+# TYPE pet_adoption_applications_total gauge
+pet_adoption_applications_total {application_count}
+
+# HELP pet_adoption_jobs_total Jobs by status
+# TYPE pet_adoption_jobs_total gauge
+pet_adoption_jobs_total{{status="pending"}} {job_pending}
+pet_adoption_jobs_total{{status="running"}} {job_running}
+pet_adoption_jobs_total{{status="failed"}} {job_failed}
+pet_adoption_jobs_total{{status="succeeded"}} {job_succeeded}
+"""
+        
+        return metrics_text, 200, {'Content-Type': 'text/plain; charset=utf-8'}
+    
+    # JWT 錯誤處理 - 添加詳細日誌
     @jwt.expired_token_loader
     def expired_token_callback(jwt_header, jwt_payload):
-        return {'error': 'Token has expired'}, 401
+        app.logger.warning(f'Expired token: header={jwt_header}, payload={jwt_payload}')
+        return {'error': 'Token has expired', 'code': 'token_expired'}, 401
     
     @jwt.invalid_token_loader
     def invalid_token_callback(error):
-        return {'error': 'Invalid token'}, 401
+        app.logger.error(f'Invalid token error: {error}')
+        return {'error': 'Invalid token', 'code': 'token_invalid', 'detail': str(error)}, 401
     
     @jwt.unauthorized_loader
     def unauthorized_callback(error):
-        return {'error': 'Missing authorization header'}, 401
+        app.logger.warning(f'Unauthorized access: {error}')
+        return {'error': 'Missing authorization header', 'code': 'token_missing'}, 401
+    
+    @jwt.revoked_token_loader
+    def revoked_token_callback(jwt_header, jwt_payload):
+        app.logger.warning(f'Revoked token: header={jwt_header}, payload={jwt_payload}')
+        return {'error': 'Token has been revoked', 'code': 'token_revoked'}, 401
     
     return app

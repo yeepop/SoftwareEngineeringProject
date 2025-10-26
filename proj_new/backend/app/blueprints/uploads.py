@@ -4,7 +4,6 @@ Uploads Blueprint - 檔案上傳 API
 from flask import request, jsonify
 from flask_smorest import Blueprint, abort
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from datetime import timedelta
 import uuid
 
 from app import db
@@ -14,100 +13,111 @@ from config import Config
 
 # MinIO 客戶端初始化
 from minio import Minio
-minio_client = Minio(
-    Config.MINIO_ENDPOINT,
-    access_key=Config.MINIO_ACCESS_KEY,
-    secret_key=Config.MINIO_SECRET_KEY,
-    secure=False
-)
+
+# 只使用內部客戶端連接 MinIO
+minio_client = None
+minio_available = False
+
+try:
+    if Config.MINIO_ENDPOINT:
+        minio_client = Minio(
+            Config.MINIO_ENDPOINT,  # minio:9000
+            access_key=Config.MINIO_ACCESS_KEY,
+            secret_key=Config.MINIO_SECRET_KEY,
+            secure=False
+        )
+        
+        # 確保 bucket 存在
+        if not minio_client.bucket_exists(Config.MINIO_BUCKET):
+            minio_client.make_bucket(Config.MINIO_BUCKET)
+            print(f"Created MinIO bucket: {Config.MINIO_BUCKET}")
+        else:
+            print(f"MinIO bucket exists: {Config.MINIO_BUCKET}")
+        
+        # 設置 bucket 策略為公開讀寫 (允許前端直接上傳)
+        import json
+        policy = {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Allow",
+                    "Principal": {"AWS": "*"},
+                    "Action": ["s3:GetObject", "s3:PutObject"],
+                    "Resource": [f"arn:aws:s3:::{Config.MINIO_BUCKET}/*"]
+                }
+            ]
+        }
+        minio_client.set_bucket_policy(Config.MINIO_BUCKET, json.dumps(policy))
+        print(f"MinIO bucket policy set to public read-write")
+        minio_available = True
+    else:
+        print("MinIO disabled (MINIO_ENDPOINT not configured)")
+    
+except Exception as e:
+    print(f"MinIO initialization error (non-fatal): {e}")
+    minio_client = None
+    minio_available = False
 
 uploads_bp = Blueprint('uploads', __name__, description='檔案上傳 API')
 
 
-@uploads_bp.route('/presign', methods=['POST'])
+@uploads_bp.route('/direct', methods=['POST'])
 @jwt_required()
-def generate_presigned_url():
+def upload_direct():
     """
-    產生預簽名上傳 URL
+    直接上傳檔案 (後端代理)
     ---
-    用於單檔案上傳 (< 5GB)
+    解決 presigned URL 的 CORS 和簽名問題
+    前端直接將檔案發送到此 endpoint,後端負責上傳到 MinIO
     """
     try:
         current_user_id = int(get_jwt_identity())
-        data = request.get_json()
         
-        # 驗證必填欄位
-        if not data.get('filename'):
-            abort(400, message='缺少必填欄位: filename')
+        # 檢查是否有檔案
+        if 'file' not in request.files:
+            abort(400, message='缺少檔案')
         
-        object_key = data.get('object_key')
-        if not object_key:
-            # 自動生成唯一 object key
-            ext = data['filename'].split('.')[-1] if '.' in data['filename'] else ''
-            object_key = f"uploads/{current_user_id}/{uuid.uuid4()}.{ext}"
+        file = request.files['file']
+        if file.filename == '':
+            abort(400, message='檔案名稱為空')
         
-        # 生成 PUT 預簽名 URL (15分鐘有效)
-        presigned_url = minio_client.presigned_put_object(
-            bucket_name=Config.MINIO_BUCKET_NAME,
+        # 生成唯一 object key
+        ext = file.filename.split('.')[-1] if '.' in file.filename else ''
+        object_key = f"uploads/{current_user_id}/{uuid.uuid4()}.{ext}"
+        
+        print(f"Direct upload: {file.filename} -> {object_key}")
+        
+        # 上傳到 MinIO
+        file.seek(0, 2)  # 移到檔案末尾
+        file_size = file.tell()
+        file.seek(0)  # 回到開頭
+        
+        minio_client.put_object(
+            bucket_name=Config.MINIO_BUCKET,
             object_name=object_key,
-            expires=timedelta(minutes=15)
+            data=file,
+            length=file_size,
+            content_type=file.content_type or 'application/octet-stream'
         )
         
+        print(f"Upload successful: {object_key}")
+        
+        # 生成永久的公開 URL (bucket 已設為 public)
+        public_url = f"http://{Config.MINIO_EXTERNAL_ENDPOINT or 'localhost:9000'}/{Config.MINIO_BUCKET}/{object_key}"
+        
         return jsonify({
-            'presigned_url': presigned_url,
-            'object_key': object_key,
-            'expires_in': 900  # 秒
+            'upload_id': str(uuid.uuid4()),
+            'storage_key': object_key,
+            'filename': file.filename,
+            'size': file_size,
+            'content_type': file.content_type,
+            'url': public_url
         }), 200
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-@uploads_bp.route('/presign/multipart', methods=['POST'])
-@jwt_required()
-def generate_multipart_presigned_urls():
-    """
-    產生多部分上傳的預簽名 URLs
-    ---
-    用於大檔案上傳 (> 5GB)
-    """
-    try:
-        current_user_id = int(get_jwt_identity())
-        data = request.get_json()
-        
-        # 驗證必填欄位
-        if not data.get('filename') or not data.get('parts'):
-            abort(400, message='缺少必填欄位: filename, parts')
-        
-        parts = data['parts']
-        if parts < 1 or parts > 10000:
-            abort(400, message='parts 必須在 1-10000 之間')
-        
-        object_key = data.get('object_key')
-        if not object_key:
-            ext = data['filename'].split('.')[-1] if '.' in data['filename'] else ''
-            object_key = f"uploads/{current_user_id}/{uuid.uuid4()}.{ext}"
-        
-        # 生成多個 part 的預簽名 URLs (1小時有效)
-        presigned_urls = []
-        for part_number in range(1, parts + 1):
-            url = minio_client.presigned_put_object(
-                bucket_name=Config.MINIO_BUCKET_NAME,
-                object_name=object_key,
-                expires=timedelta(hours=1)
-            )
-            presigned_urls.append({
-                'part_number': part_number,
-                'presigned_url': url
-            })
-        
-        return jsonify({
-            'presigned_urls': presigned_urls,
-            'object_key': object_key,
-            'expires_in': 3600
-        }), 200
-        
-    except Exception as e:
+        print(f"Direct upload error: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 
@@ -132,7 +142,7 @@ def create_attachment():
         # 驗證檔案是否存在於 MinIO
         try:
             stat = minio_client.stat_object(
-                bucket_name=Config.MINIO_BUCKET_NAME,
+                bucket_name=Config.MINIO_BUCKET,
                 object_name=data['object_key']
             )
         except Exception:
@@ -152,17 +162,13 @@ def create_attachment():
         db.session.add(attachment)
         db.session.commit()
         
-        # 生成下載 URL
-        download_url = minio_client.presigned_get_object(
-            bucket_name=Config.MINIO_BUCKET_NAME,
-            object_name=data['object_key'],
-            expires=timedelta(hours=1)
-        )
+        # 生成永久的公開 URL
+        public_url = f"http://{Config.MINIO_EXTERNAL_ENDPOINT or 'localhost:9000'}/{Config.MINIO_BUCKET}/{data['object_key']}"
         
         return jsonify({
             'message': '附件已建立',
             'attachment': attachment.to_dict(),
-            'download_url': download_url
+            'download_url': public_url
         }), 201
         
     except Exception as e:
@@ -188,17 +194,12 @@ def get_attachment(attachment_id):
         if not attachment:
             abort(404, message='附件不存在')
         
-        # 生成新的下載 URL (1小時有效)
-        download_url = minio_client.presigned_get_object(
-            bucket_name=Config.MINIO_BUCKET_NAME,
-            object_name=attachment.object_key,
-            expires=timedelta(hours=1)
-        )
+        # 生成永久的公開 URL
+        public_url = f"http://{Config.MINIO_EXTERNAL_ENDPOINT or 'localhost:9000'}/{Config.MINIO_BUCKET}/{attachment.object_key}"
         
         return jsonify({
             'attachment': attachment.to_dict(),
-            'download_url': download_url,
-            'expires_in': 3600
+            'download_url': public_url
         }), 200
         
     except Exception as e:

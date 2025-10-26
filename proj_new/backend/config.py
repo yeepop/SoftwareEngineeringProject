@@ -9,6 +9,7 @@ class Config:
     """Base configuration"""
     # Flask
     SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
+    SECURITY_PASSWORD_SALT = os.environ.get('SECURITY_PASSWORD_SALT', 'dev-password-salt-change-in-production')
     
     # Database
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', 'mysql+pymysql://root:password@localhost:3307/pet_adoption')
@@ -31,6 +32,7 @@ class Config:
     
     # MinIO / S3
     MINIO_ENDPOINT = os.environ.get('MINIO_ENDPOINT', 'localhost:9000')
+    MINIO_EXTERNAL_ENDPOINT = os.environ.get('MINIO_EXTERNAL_ENDPOINT', 'localhost:9000')
     MINIO_ACCESS_KEY = os.environ.get('MINIO_ACCESS_KEY', 'minioadmin123')
     MINIO_SECRET_KEY = os.environ.get('MINIO_SECRET_KEY', 'minioadmin123')
     MINIO_BUCKET = os.environ.get('MINIO_BUCKET', 'pet-adoption')
@@ -42,7 +44,7 @@ class Config:
     PRESIGNED_URL_EXPIRY = 900  # 15 minutes
     
     # CORS
-    CORS_ORIGINS = os.environ.get('CORS_ORIGINS', 'http://localhost:3000').split(',')
+    CORS_ORIGINS = os.environ.get('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173').split(',')
     
     # API Documentation
     API_TITLE = 'Pet Adoption Platform API'

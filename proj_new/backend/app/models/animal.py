@@ -118,11 +118,26 @@ class AnimalImage(db.Model):
     
     def to_dict(self):
         """轉換為字典"""
+        from config import Config
+        
+        # 使用 storage_key 重新構建永久的公開 URL
+        # 避免使用資料庫中可能過期的 presigned URL
+        if self.storage_key:
+            url = f"http://{Config.MINIO_EXTERNAL_ENDPOINT or 'localhost:9000'}/{Config.MINIO_BUCKET}/{self.storage_key}"
+        else:
+            # 如果沒有 storage_key,嘗試轉換 URL (向後兼容)
+            url = self.url
+            if url and 'minio:9000' in url:
+                url = url.replace('minio:9000', Config.MINIO_EXTERNAL_ENDPOINT or 'localhost:9000')
+            # 移除可能過期的查詢參數
+            if url and '?' in url:
+                url = url.split('?')[0]
+        
         return {
             'animal_image_id': self.animal_image_id,
             'animal_id': self.animal_id,
             'storage_key': self.storage_key,
-            'url': self.url,
+            'url': url,
             'mime_type': self.mime_type,
             'width': self.width,
             'height': self.height,

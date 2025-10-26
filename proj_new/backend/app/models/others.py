@@ -40,6 +40,14 @@ class Notification(db.Model):
         }
 
 
+class JobType(str, Enum):
+    """工作類型枚舉"""
+    IMPORT_ANIMALS = 'import_animals'
+    EXPORT_USER_DATA = 'export_user_data'
+    BATCH_NOTIFICATION = 'batch_notification'
+    GENERATE_REPORT = 'generate_report'
+
+
 class JobStatus(str, Enum):
     """工作狀態枚舉"""
     PENDING = 'PENDING'

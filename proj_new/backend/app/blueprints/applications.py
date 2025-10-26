@@ -11,6 +11,7 @@ from app import db
 from app.models.application import Application, ApplicationStatus
 from app.models.user import User, UserRole
 from app.models.animal import Animal
+from app.services.audit_service import audit_service
 
 applications_bp = Blueprint('applications', __name__, description='領養申請 API')
 
@@ -40,7 +41,12 @@ def list_applications():
         
         # 過濾條件
         if 'status' in request.args:
-            query = query.filter_by(status=request.args.get('status'))
+            status_str = request.args.get('status')
+            try:
+                status_enum = ApplicationStatus(status_str)
+                query = query.filter_by(status=status_enum)
+            except ValueError:
+                abort(400, message=f'無效的狀態值: {status_str}')
         if 'animal_id' in request.args:
             query = query.filter_by(animal_id=request.args.get('animal_id', type=int))
         if 'applicant_id' in request.args and current_user.role != UserRole.GENERAL_MEMBER:
@@ -52,7 +58,7 @@ def list_applications():
         )
         
         return jsonify({
-            'items': [app.to_dict() for app in pagination.items],
+            'items': [app.to_dict(include_relations=True) for app in pagination.items],
             'total': pagination.total,
             'page': page,
             'per_page': per_page,
@@ -88,8 +94,12 @@ def create_application():
         if not animal:
             abort(404, message='動物不存在')
         
-        if animal.status != 'AVAILABLE':
+        if animal.status != 'PUBLISHED':
             abort(400, message='此動物目前無法申請領養')
+        
+        # 檢查申請人不能是刊登者本人
+        if animal.owner_id == current_user_id or animal.created_by == current_user_id:
+            abort(400, message='您不能申請自己刊登的動物')
         
         # 檢查是否已有進行中的申請
         existing = Application.query.filter_by(
@@ -117,10 +127,10 @@ def create_application():
         application = Application(
             animal_id=data['animal_id'],
             applicant_id=current_user_id,
+            type=data.get('type', 'ADOPTION'),
             status=ApplicationStatus.PENDING,
-            application_reason=data.get('application_reason'),
-            living_environment=data.get('living_environment'),
-            experience_with_pets=data.get('experience_with_pets'),
+            submitted_at=datetime.utcnow(),
+            attachments=data.get('attachments'),
             idempotency_key=idempotency_key
         )
         
@@ -160,7 +170,7 @@ def get_application(application_id):
         if current_user.role == UserRole.GENERAL_MEMBER and application.applicant_id != current_user_id:
             abort(403, message='無權限查看此申請')
         
-        return jsonify(application.to_dict()), 200
+        return jsonify(application.to_dict(include_relations=True)), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -206,18 +216,29 @@ def review_application(application_id):
             if application.version != data['version']:
                 abort(409, message='申請已被其他人修改，請重新載入')
         
+        # 保存舊狀態用於審計日誌
+        old_status = application.status
+        
         # 更新申請狀態
         if action == 'approve':
             application.status = ApplicationStatus.APPROVED
         else:
             application.status = ApplicationStatus.REJECTED
         
-        application.reviewed_by_id = current_user_id
+        application.assignee_id = current_user_id
         application.reviewed_at = datetime.utcnow()
         application.review_notes = data.get('review_notes')
         application.version += 1
         
         db.session.commit()
+        
+        # 記錄審計日誌
+        audit_service.log_application_review(
+            application_id,
+            current_user_id,
+            old_status.value,
+            application.status.value
+        )
         
         return jsonify({
             'message': f'申請已{("核准" if action == "approve" else "拒絕")}',
@@ -260,7 +281,7 @@ def assign_application(application_id):
         if not assignee or assignee.role not in [UserRole.ADMIN, UserRole.SHELTER_MEMBER]:
             abort(400, message='無效的受理人')
         
-        application.assigned_to_id = assignee_id
+        application.assignee_id = assignee_id
         application.status = ApplicationStatus.UNDER_REVIEW
         application.version += 1
         

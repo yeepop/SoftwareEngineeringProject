@@ -8,7 +8,9 @@ import type { User } from '@/types/models'
 
 export const useAuthStore = defineStore('auth', () => {
   // State
-  const user = ref<User | null>(null)
+  const user = ref<User | null>(
+    localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!) : null
+  )
   const accessToken = ref<string | null>(localStorage.getItem('access_token'))
   const refreshToken = ref<string | null>(localStorage.getItem('refresh_token'))
 
@@ -29,6 +31,7 @@ export const useAuthStore = defineStore('auth', () => {
     
     localStorage.setItem('access_token', access_token)
     localStorage.setItem('refresh_token', refresh_token)
+    localStorage.setItem('user', JSON.stringify(userData))
   }
 
   async function register(data: {
@@ -55,6 +58,7 @@ export const useAuthStore = defineStore('auth', () => {
       
       localStorage.removeItem('access_token')
       localStorage.removeItem('refresh_token')
+      localStorage.removeItem('user')
     }
   }
 
@@ -64,6 +68,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const response = await api.get('/auth/me')
       user.value = response.data
+      localStorage.setItem('user', JSON.stringify(response.data))
     } catch (error) {
       console.error('Fetch user error:', error)
       logout()

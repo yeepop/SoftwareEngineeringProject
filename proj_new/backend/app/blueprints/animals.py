@@ -27,15 +27,26 @@ def list_animals():
     # 取得查詢參數
     species = request.args.get('species')
     sex = request.args.get('sex')
-    status = request.args.get('status', AnimalStatus.PUBLISHED.value)
+    status = request.args.get('status')
     shelter_id = request.args.get('shelter_id')
+    owner_id = request.args.get('owner_id', type=int)
+    q = request.args.get('q', '').strip()
     page = request.args.get('page', 1, type=int)
     per_page = min(request.args.get('per_page', 20, type=int), 100)
     
     # 建立查詢
     query = Animal.query.filter_by(deleted_at=None)
     
-    # 預設只顯示已發布的動物
+    # 如果有 owner_id 參數，查詢該用戶的所有動物(包含草稿)
+    # 否則預設只顯示已發布的動物
+    if owner_id:
+        query = query.filter_by(owner_id=owner_id)
+    else:
+        # 預設只顯示已發布的動物
+        if not status:
+            status = AnimalStatus.PUBLISHED.value
+    
+    # 狀態篩選
     if status:
         try:
             query = query.filter_by(status=AnimalStatus(status))
@@ -57,6 +68,16 @@ def list_animals():
     
     if shelter_id:
         query = query.filter_by(shelter_id=shelter_id)
+    
+    # 關鍵字搜尋
+    if q:
+        query = query.filter(
+            db.or_(
+                Animal.name.like(f'%{q}%'),
+                Animal.description.like(f'%{q}%'),
+                Animal.breed.like(f'%{q}%')
+            )
+        )
     
     # 分頁
     pagination = query.order_by(Animal.created_at.desc()).paginate(
@@ -100,7 +121,7 @@ def create_animal():
     建立動物資料 (需登入)
     ---
     """
-    current_user_id = get_jwt_identity()
+    current_user_id = int(get_jwt_identity())
     user = User.query.get(current_user_id)
     
     if not user:
@@ -139,7 +160,7 @@ def update_animal(animal_id):
     更新動物資料 (需為擁有者或管理員)
     ---
     """
-    current_user_id = get_jwt_identity()
+    current_user_id = int(get_jwt_identity())
     user = User.query.get(current_user_id)
     
     animal = Animal.query.filter_by(animal_id=animal_id, deleted_at=None).first()
@@ -186,7 +207,7 @@ def delete_animal(animal_id):
     刪除動物資料 (軟刪除)
     ---
     """
-    current_user_id = get_jwt_identity()
+    current_user_id = int(get_jwt_identity())
     user = User.query.get(current_user_id)
     
     animal = Animal.query.filter_by(animal_id=animal_id, deleted_at=None).first()
@@ -236,16 +257,17 @@ def add_animal_image(animal_id):
             abort(400, message='缺少必填欄位: image_url')
         
         # 計算新圖片的順序
-        max_order = db.session.query(db.func.max(AnimalImage.display_order)).filter_by(
+        max_order = db.session.query(db.func.max(AnimalImage.order)).filter_by(
             animal_id=animal_id
         ).scalar() or 0
         
         # 建立圖片記錄
         image = AnimalImage(
             animal_id=animal_id,
-            image_url=data['image_url'],
-            display_order=max_order + 1,
-            description=data.get('description')
+            storage_key=data.get('storage_key', ''),
+            url=data['image_url'],
+            mime_type=data.get('mime_type', 'image/jpeg'),
+            order=max_order + 1
         )
         
         db.session.add(image)
@@ -282,12 +304,19 @@ def delete_animal_image(animal_id, image_id):
             abort(403, message='無權限管理此動物的圖片')
         
         image = AnimalImage.query.filter_by(
-            image_id=image_id,
+            animal_image_id=image_id,
             animal_id=animal_id
         ).first()
         
         if not image:
             abort(404, message='圖片不存在')
+        
+        # 可選: 從 MinIO 刪除實際檔案
+        # if image.storage_key:
+        #     try:
+        #         minio_client.remove_object(Config.MINIO_BUCKET_NAME, image.storage_key)
+        #     except Exception as e:
+        #         current_app.logger.warning(f"Failed to delete file from MinIO: {e}")
         
         db.session.delete(image)
         db.session.commit()
@@ -326,11 +355,11 @@ def reorder_animal_images(animal_id):
         # 更新圖片順序
         for item in image_orders:
             image = AnimalImage.query.filter_by(
-                image_id=item['image_id'],
+                animal_image_id=item['image_id'],
                 animal_id=animal_id
             ).first()
             if image:
-                image.display_order = item['order']
+                image.order = item['order']
         
         db.session.commit()
         
@@ -342,6 +371,43 @@ def reorder_animal_images(animal_id):
 
 
 # ========== 狀態管理 ==========
+
+@animals_bp.route('/<int:animal_id>/submit', methods=['POST'])
+@jwt_required()
+def submit_animal(animal_id):
+    """
+    提交動物供審核 (狀態: DRAFT -> SUBMITTED)
+    ---
+    擁有者可提交自己的動物
+    """
+    try:
+        current_user_id = int(get_jwt_identity())
+        
+        animal = Animal.query.filter_by(animal_id=animal_id, deleted_at=None).first()
+        if not animal:
+            abort(404, message='動物不存在')
+        
+        # 權限檢查: 必須是擁有者
+        if animal.owner_id != current_user_id:
+            abort(403, message='只能提交自己的動物')
+        
+        # 狀態檢查
+        if animal.status != AnimalStatus.DRAFT:
+            abort(400, message=f'只能提交草稿狀態的動物,目前狀態: {animal.status.value}')
+        
+        # 更新狀態為待審核
+        animal.status = AnimalStatus.SUBMITTED
+        db.session.commit()
+        
+        return jsonify({
+            'message': '動物已提交審核,管理員將儘快處理',
+            'animal': animal.to_dict()
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
 
 @animals_bp.route('/<int:animal_id>/publish', methods=['POST'])
 @jwt_required()

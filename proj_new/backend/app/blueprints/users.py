@@ -102,7 +102,7 @@ def change_password(user_id):
     ---
     """
     try:
-        current_user_id = get_jwt_identity()
+        current_user_id = int(get_jwt_identity())
         
         # 只能修改自己的密碼
         if current_user_id != user_id:
@@ -155,7 +155,7 @@ def request_data_export(user_id):
     ---
     """
     try:
-        current_user_id = get_jwt_identity()
+        current_user_id = int(get_jwt_identity())
         
         # 只能匯出自己的資料
         if current_user_id != user_id:
@@ -200,7 +200,7 @@ def request_data_deletion(user_id):
     ---
     """
     try:
-        current_user_id = get_jwt_identity()
+        current_user_id = int(get_jwt_identity())
         current_user = User.query.get(current_user_id)
         
         # 只有本人或管理員可以刪除
