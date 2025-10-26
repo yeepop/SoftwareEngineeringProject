@@ -112,6 +112,19 @@
             </div>
           </div>
         </button>
+
+        <button
+          @click="router.push('/admin/users')"
+          class="bg-white rounded-lg shadow p-4 hover:shadow-lg transition text-left"
+        >
+          <div class="flex items-center gap-3">
+            <div class="text-3xl">👥</div>
+            <div>
+              <p class="font-semibold text-gray-900">用戶管理</p>
+              <p class="text-sm text-gray-600">管理系統用戶與權限</p>
+            </div>
+          </div>
+        </button>
       </div>
 
       <!-- 狀態篩選 -->

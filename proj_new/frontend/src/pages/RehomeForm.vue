@@ -331,6 +331,13 @@ async function loadAnimalData(id: number) {
   try {
     const animal = await getAnimal(id)
     
+    // 檢查是否為當前用戶的動物
+    if (animal.owner_id !== authStore.user?.user_id) {
+      alert('無權限編輯此動物資料')
+      router.push('/my-rehomes')
+      return
+    }
+    
     // 填充表單資料
     formData.name = animal.name || ''
     formData.species = animal.species || ''
@@ -348,8 +355,18 @@ async function loadAnimalData(id: number) {
     }
   } catch (error: any) {
     console.error('Load animal error:', error)
-    errorMessage.value = '載入動物資料失敗'
-    setTimeout(() => router.push('/my-rehomes'), 2000)
+    
+    // 更詳細的錯誤處理
+    if (error.response?.status === 404) {
+      alert('此動物資料不存在或已被刪除')
+    } else if (error.response?.status === 403) {
+      alert('無權限編輯此動物資料')
+    } else {
+      alert(error.response?.data?.message || '載入動物資料失敗')
+    }
+    
+    // 返回到我的送養列表
+    router.push('/my-rehomes')
   }
 }
 
@@ -390,14 +407,93 @@ function onUploadError(error: string) {
   errorMessage.value = error
 }
 
-function saveDraft() {
-  const draft = {
-    formData: { ...formData },
-    uploadedPhotos: uploadedPhotos.value,
-    currentStep: currentStep.value,
+async function saveDraft() {
+  // 基本驗證
+  if (!formData.name || !formData.species) {
+    alert('請至少填寫動物名稱和物種')
+    return
   }
-  localStorage.setItem('rehome_draft', JSON.stringify(draft))
-  alert('草稿已儲存')
+
+  isSubmitting.value = true
+  errorMessage.value = ''
+
+  try {
+    // 準備動物資料
+    const animalData = {
+      name: formData.name,
+      species: formData.species as 'CAT' | 'DOG',
+      breed: formData.breed || undefined,
+      sex: formData.sex || undefined,
+      dob: formData.date_of_birth || undefined,
+      description: formData.description || undefined,
+      medical_summary: formData.medical_summary || undefined,
+      status: 'DRAFT' as const,
+    }
+
+    let animalId: number
+
+    // 如果是編輯模式,更新現有草稿
+    if (isEditMode.value && editingAnimalId.value) {
+      const result = await updateAnimal(editingAnimalId.value, animalData)
+      animalId = result.animal.animal_id
+      alert('草稿已更新')
+    } else {
+      // 新增模式,創建新草稿
+      const result = await createAnimal(animalData)
+      animalId = result.animal.animal_id
+      
+      // 儲存草稿 ID,下次可以更新而不是創建新的
+      editingAnimalId.value = animalId
+      isEditMode.value = true
+      
+      alert('草稿已儲存到資料庫')
+    }
+
+    // 同時儲存到 localStorage 作為備份
+    const draft = {
+      animalId: animalId,
+      formData: { ...formData },
+      uploadedPhotos: uploadedPhotos.value,
+      currentStep: currentStep.value,
+    }
+    localStorage.setItem('rehome_draft', JSON.stringify(draft))
+
+  } catch (error: any) {
+    console.error('Save draft error:', error)
+    
+    // 處理動物不存在的情況
+    if (error.response?.status === 404) {
+      alert('此動物資料不存在或已被刪除,將建立新的草稿')
+      // 切換為新增模式
+      isEditMode.value = false
+      editingAnimalId.value = null
+      localStorage.removeItem('rehome_draft')
+      // 嘗試重新儲存為新草稿
+      try {
+        const animalData = {
+          name: formData.name,
+          species: formData.species as 'CAT' | 'DOG',
+          breed: formData.breed || undefined,
+          sex: formData.sex || undefined,
+          dob: formData.date_of_birth || undefined,
+          description: formData.description || undefined,
+          medical_summary: formData.medical_summary || undefined,
+          status: 'DRAFT' as const,
+        }
+        const result = await createAnimal(animalData)
+        editingAnimalId.value = result.animal.animal_id
+        isEditMode.value = true
+        alert('已建立新的草稿')
+      } catch (retryError) {
+        alert('建立新草稿失敗')
+      }
+    } else {
+      errorMessage.value = error.response?.data?.message || '儲存草稿失敗'
+      alert('儲存草稿失敗: ' + errorMessage.value)
+    }
+  } finally {
+    isSubmitting.value = false
+  }
 }
 
 function loadDraft() {
@@ -406,11 +502,32 @@ function loadDraft() {
 
   try {
     const draft = JSON.parse(draftStr)
+    
+    // 如果草稿有 animalId,驗證該動物是否仍然存在
+    if (draft.animalId) {
+      // 嘗試載入該動物資料來驗證
+      getAnimal(draft.animalId)
+        .then(() => {
+          editingAnimalId.value = draft.animalId
+          isEditMode.value = true
+          console.log('載入已儲存的草稿 ID:', draft.animalId)
+        })
+        .catch((error) => {
+          console.warn('草稿中的動物不存在,清除草稿:', draft.animalId)
+          localStorage.removeItem('rehome_draft')
+          // 但仍然載入表單資料
+          Object.assign(formData, draft.formData)
+          uploadedPhotos.value = []
+          currentStep.value = draft.currentStep || 0
+        })
+    }
+    
     Object.assign(formData, draft.formData)
     uploadedPhotos.value = draft.uploadedPhotos || []
     currentStep.value = draft.currentStep || 0
   } catch (error) {
     console.error('載入草稿失敗:', error)
+    localStorage.removeItem('rehome_draft')
   }
 }
 
@@ -486,7 +603,60 @@ async function handleSubmit() {
     router.push('/my-rehomes')
   } catch (error: any) {
     console.error('Submit error:', error)
+    
+    // 處理動物不存在的情況
+    if (error.response?.status === 404 && isEditMode.value) {
+      alert('此動物資料不存在或已被刪除,將建立新的送養資訊')
+      // 切換為新增模式並重試
+      isEditMode.value = false
+      editingAnimalId.value = null
+      localStorage.removeItem('rehome_draft')
+      
+      // 自動重試提交為新動物
+      try {
+        const animalData = {
+          name: formData.name,
+          species: formData.species as 'CAT' | 'DOG',
+          breed: formData.breed || undefined,
+          sex: formData.sex as 'MALE' | 'FEMALE',
+          date_of_birth: formData.date_of_birth || undefined,
+          color: formData.color || undefined,
+          description: formData.description,
+          medical_summary: formData.medical_summary || undefined,
+          is_neutered: formData.is_neutered,
+          source_type: 'PERSONAL' as const,
+          status: 'DRAFT' as const,
+        }
+        
+        const result = await createAnimal(animalData)
+        const newAnimalId = result.animal.animal_id
+        
+        // 上傳照片
+        const uploaderFiles = fileUploader.value?.files || []
+        if (uploaderFiles.length > 0) {
+          const { uploadMultiple } = useUpload()
+          const files = uploaderFiles.map(item => item.file)
+          const uploadResults = await uploadMultiple(files, 'ANIMAL', newAnimalId)
+          
+          for (const uploadResult of uploadResults) {
+            await addAnimalImage(newAnimalId, { 
+              image_url: uploadResult.url,
+              storage_key: uploadResult.storage_key,
+              mime_type: uploadResult.mime_type
+            })
+          }
+        }
+        
+        alert('送養資訊已建立成功!')
+        router.push('/my-rehomes')
+        return
+      } catch (retryError) {
+        alert('重新建立送養資訊失敗')
+      }
+    }
+    
     errorMessage.value = error.response?.data?.message || '送出失敗,請稍後再試'
+    alert(errorMessage.value)
   } finally {
     isSubmitting.value = false
   }

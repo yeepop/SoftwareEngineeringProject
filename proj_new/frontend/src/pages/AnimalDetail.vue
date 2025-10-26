@@ -51,12 +51,19 @@
           <!-- 右側：詳細資訊 -->
           <div class="p-8">
             <!-- 狀態標籤 -->
-            <div class="mb-4">
+            <div class="mb-4 flex gap-2">
               <span
                 class="inline-block px-3 py-1 text-sm font-semibold rounded-full"
                 :class="statusClass"
               >
                 {{ statusText }}
+              </span>
+              <!-- 我的寵物標籤 -->
+              <span
+                v-if="isMyAnimal"
+                class="inline-block px-3 py-1 text-sm font-semibold rounded-full bg-purple-500 text-white"
+              >
+                👤 我的寵物
               </span>
             </div>
 
@@ -100,15 +107,21 @@
 
             <!-- 行動按鈕 -->
             <div class="flex gap-4 mt-8">
+              <!-- 已被領養提示 -->
+              <div v-if="animal.status === 'ADOPTED'" class="flex-1 bg-blue-50 border-2 border-blue-200 text-blue-800 px-6 py-3 rounded-lg font-semibold text-center">
+                💙 此動物已被領養
+              </div>
+              
+              <!-- 我想領養按鈕 (非自己的動物且未被領養才顯示) -->
               <button
-                v-if="animal.status === 'PUBLISHED' && isAuthenticated"
+                v-else-if="animal.status === 'PUBLISHED' && isAuthenticated && !isMyAnimal"
                 @click="handleApply"
                 class="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
               >
                 我想領養
               </button>
               <button
-                v-else-if="!isAuthenticated"
+                v-else-if="animal.status === 'PUBLISHED' && !isAuthenticated && !isMyAnimal"
                 @click="goToLogin"
                 class="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
               >
@@ -120,6 +133,7 @@
                 v-if="canEdit"
                 @click="goToEdit"
                 class="px-6 py-3 border-2 border-blue-600 text-blue-600 rounded-lg font-semibold hover:bg-blue-50 transition"
+                :class="{ 'flex-1': isMyAnimal || animal.status === 'ADOPTED' }"
               >
                 編輯
               </button>
@@ -316,6 +330,7 @@ const statusText = computed(() => {
     DRAFT: '草稿',
     SUBMITTED: '審核中',
     PUBLISHED: '已上架',
+    ADOPTED: '已被領養',
     RETIRED: '已下架',
   }
   return animal.value ? map[animal.value.status] || '未知' : ''
@@ -327,6 +342,7 @@ const statusClass = computed(() => {
     DRAFT: 'bg-gray-100 text-gray-800',
     SUBMITTED: 'bg-yellow-100 text-yellow-800',
     PUBLISHED: 'bg-green-100 text-green-800',
+    ADOPTED: 'bg-blue-100 text-blue-800',
     RETIRED: 'bg-red-100 text-red-800',
   }
   return animal.value ? map[animal.value.status] || 'bg-gray-100 text-gray-800' : ''
@@ -361,6 +377,12 @@ const formattedDate = computed(() => {
 const canEdit = computed(() => {
   if (!animal.value || !authStore.user) return false
   return animal.value.created_by === authStore.user.user_id || authStore.isAdmin
+})
+
+// 是否為我的動物
+const isMyAnimal = computed(() => {
+  if (!animal.value || !authStore.user) return false
+  return animal.value.created_by === authStore.user.user_id
 })
 
 // 載入動物詳情
@@ -454,8 +476,9 @@ function goToLogin() {
 
 // 前往編輯
 function goToEdit() {
-  // TODO: 實作編輯頁面
-  alert('編輯功能開發中...')
+  if (!animal.value) return
+  // 導向到「我的送養」頁面,用戶可以在那裡編輯
+  router.push('/my-rehomes')
 }
 
 // 初始載入

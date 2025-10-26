@@ -5,6 +5,9 @@ FROM node:18-alpine AS development
 
 WORKDIR /app
 
+# 安裝 git (某些 npm 套件需要)
+RUN apk add --no-cache git
+
 # 複製 package files
 COPY package*.json ./
 
@@ -17,8 +20,8 @@ COPY . .
 # 暴露 Vite 開發伺服器端口
 EXPOSE 5173
 
-# 開發模式啟動
-CMD ["npm", "run", "dev"]
+# 開發模式啟動 (支持熱重載)
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 
 # Builder stage
 FROM node:18-alpine AS builder

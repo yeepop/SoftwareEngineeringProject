@@ -25,8 +25,15 @@
         </span>
       </div>
 
+      <!-- 我的寵物標籤 -->
+      <div v-if="isMyAnimal" class="absolute top-2 left-2">
+        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-purple-500 text-white">
+          👤 我的
+        </span>
+      </div>
+
       <!-- Featured 標籤 -->
-      <div v-if="animal.featured" class="absolute top-2 left-2">
+      <div v-else-if="animal.featured" class="absolute top-2 left-2">
         <span class="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-400 text-yellow-900">
           ⭐ 精選
         </span>
@@ -79,6 +86,9 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useAuthStore } from '@/stores/auth'
+
+const authStore = useAuthStore()
 
 interface Animal {
   animal_id: number
@@ -91,6 +101,7 @@ interface Animal {
   status: 'DRAFT' | 'SUBMITTED' | 'PUBLISHED' | 'RETIRED'
   shelter_id?: number
   owner_id?: number
+  created_by?: number
   featured?: boolean
   images?: Array<{ url: string; order: number }>
   created_at: string
@@ -100,6 +111,11 @@ const props = defineProps<{
   animal: Animal
 }>()
 
+// 是否為我的動物
+const isMyAnimal = computed(() => {
+  if (!authStore.user) return false
+  return props.animal.created_by === authStore.user.user_id
+})
 // 主要圖片
 const primaryImage = computed(() => {
   if (props.animal.images && props.animal.images.length > 0) {
@@ -134,6 +150,7 @@ const statusText = computed(() => {
     DRAFT: '草稿',
     SUBMITTED: '審核中',
     PUBLISHED: '已上架',
+    ADOPTED: '已被領養',
     RETIRED: '已下架',
   }
   return map[props.animal.status] || '未知'
@@ -145,6 +162,7 @@ const statusClass = computed(() => {
     DRAFT: 'bg-gray-100 text-gray-800',
     SUBMITTED: 'bg-yellow-100 text-yellow-800',
     PUBLISHED: 'bg-green-100 text-green-800',
+    ADOPTED: 'bg-blue-100 text-blue-800',
     RETIRED: 'bg-red-100 text-red-800',
   }
   return map[props.animal.status] || 'bg-gray-100 text-gray-800'

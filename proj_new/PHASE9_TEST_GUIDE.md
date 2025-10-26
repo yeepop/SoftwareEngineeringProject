@@ -25,7 +25,7 @@
 curl http://localhost:5000/health
 
 # 檢查前端
-# 瀏覽器訪問 http://localhost:5174
+# 瀏覽器訪問 http://localhost:5173
 \\\
 
 ### 2. 準備測試帳號
@@ -56,7 +56,7 @@ Invoke-RestMethod -Uri 'http://localhost:5000/api/shelters/1/animals/batch' -Met
 1. 使用 **admin@test.com** 登入
 2. 點擊導航欄「管理後台」
 3. 在 AdminDashboard 點擊「📊 任務狀態」按鈕
-4. 或直接訪問: http://localhost:5174/jobs
+4. 或直接訪問: http://localhost:5173/jobs
 
 #### 預期結果:
 - ✅ 成功進入任務狀態頁面
@@ -224,7 +224,7 @@ Invoke-RestMethod -Uri 'http://localhost:5000/api/jobs/2/cancel' -Method POST -H
 
 #### 步驟:
 1. 使用一般會員帳號登入 (GENERAL_MEMBER)
-2. 嘗試訪問 http://localhost:5174/jobs
+2. 嘗試訪問 http://localhost:5173/jobs
 3. 或在導航欄檢查是否有「任務狀態」連結
 
 #### 預期結果:

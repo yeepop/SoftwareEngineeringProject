@@ -2,7 +2,7 @@
   <div class="relative">
     <!-- 通知鈴鐺按鈕 -->
     <button
-      @click="toggleDropdown"
+      @click.stop="toggleDropdown"
       class="relative p-2 text-gray-600 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 rounded-full"
       aria-label="通知"
     >
@@ -215,14 +215,20 @@ const formatDate = (dateString: string) => {
 const vClickOutside = {
   mounted(el: any, binding: any) {
     el.clickOutsideEvent = (event: Event) => {
+      // 確保點擊不在元素內部
       if (!(el === event.target || el.contains(event.target as Node))) {
         binding.value()
       }
     }
-    document.addEventListener('click', el.clickOutsideEvent)
+    // 使用 setTimeout 延遲註冊事件,避免與 toggleDropdown 衝突
+    setTimeout(() => {
+      document.addEventListener('click', el.clickOutsideEvent)
+    }, 0)
   },
   unmounted(el: any) {
-    document.removeEventListener('click', el.clickOutsideEvent)
+    if (el.clickOutsideEvent) {
+      document.removeEventListener('click', el.clickOutsideEvent)
+    }
   },
 }
 

@@ -101,40 +101,46 @@ def change_password(user_id):
     修改密碼
     ---
     """
+    current_user_id = int(get_jwt_identity())
+    
+    # 只能修改自己的密碼
+    if current_user_id != user_id:
+        abort(403, message='只能修改自己的密碼')
+    
+    user = User.query.filter_by(user_id=user_id, deleted_at=None).first()
+    
+    if not user:
+        abort(404, message='使用者不存在')
+    
+    data = request.get_json()
+    old_password = data.get('old_password')
+    new_password = data.get('new_password')
+    
+    if not old_password or not new_password:
+        abort(400, message='old_password 和 new_password 為必填欄位')
+    
+    # 驗證舊密碼
+    from app.utils.security import verify_password, hash_password
+    if not verify_password(old_password, user.password_hash):
+        abort(401, message='舊密碼錯誤')
+    
+    # 驗證新密碼長度
+    if len(new_password) < 8:
+        abort(400, message='新密碼長度至少需要 8 個字元')
+    
     try:
-        current_user_id = int(get_jwt_identity())
-        
-        # 只能修改自己的密碼
-        if current_user_id != user_id:
-            abort(403, message='只能修改自己的密碼')
-        
-        user = User.query.filter_by(user_id=user_id, deleted_at=None).first()
-        
-        if not user:
-            abort(404, message='使用者不存在')
-        
-        data = request.get_json()
-        old_password = data.get('old_password')
-        new_password = data.get('new_password')
-        
-        if not old_password or not new_password:
-            abort(400, message='old_password 和 new_password 為必填欄位')
-        
-        # 驗證舊密碼
-        from app.utils.security import verify_password
-        if not verify_password(old_password, user.password_hash):
-            abort(401, message='舊密碼錯誤')
-        
-        # 驗證新密碼長度
-        if len(new_password) < 8:
-            abort(400, message='新密碼長度至少需要 8 個字元')
-        
         # 更新密碼
-        from app.utils.security import hash_password
         user.password_hash = hash_password(new_password)
-        user.password_changed_at = datetime.utcnow()
-        user.failed_login_attempts = 0
-        user.locked_until = None
+        
+        # 更新密碼變更時間 (如果欄位存在)
+        if hasattr(user, 'password_changed_at'):
+            user.password_changed_at = datetime.utcnow()
+        
+        # 重置失敗登入次數
+        if hasattr(user, 'failed_login_attempts'):
+            user.failed_login_attempts = 0
+        if hasattr(user, 'locked_until'):
+            user.locked_until = None
         
         db.session.commit()
         
@@ -144,7 +150,10 @@ def change_password(user_id):
         
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        print(f'Password change error: {str(e)}')
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'密碼修改失敗: {str(e)}'}), 500
 
 
 @users_bp.route('/<int:user_id>/data/export', methods=['POST'])

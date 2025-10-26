@@ -8,7 +8,7 @@
 
 ## 📋 測試環境確認
 
-**前端**: http://localhost:5174/ (Vite dev server)  
+**前端**: http://localhost:5173/ (Vite dev server)  
 **後端**: http://localhost:5000/ (Flask API)  
 **資料庫**: MySQL 8.0 (Docker on port 3307)
 

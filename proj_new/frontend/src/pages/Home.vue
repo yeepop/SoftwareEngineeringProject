@@ -82,7 +82,7 @@
             </router-link>
             <router-link
               v-else
-              to="/my-applications"
+              to="/my/applications"
               class="bg-gray-200 text-gray-800 px-8 py-3 rounded-lg font-semibold hover:bg-gray-300 transition"
             >
               我的申請

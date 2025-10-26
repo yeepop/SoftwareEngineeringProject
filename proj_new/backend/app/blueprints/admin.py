@@ -29,6 +29,7 @@ def require_admin():
 
 
 @admin_bp.route('/stats', methods=['GET'])
+@admin_bp.route('/statistics', methods=['GET'])  # 別名支援
 @jwt_required()
 def get_system_stats():
     """

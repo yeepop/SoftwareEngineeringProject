@@ -20,6 +20,8 @@ coverage.json
 # Vite / Frontend
 frontend/dist/
 frontend/node_modules/
+frontend/.vite/
+frontend/.cache/
 .env.local
 .env.*.local
 
@@ -32,15 +34,36 @@ prisma/migrations/
 prisma/dev.db
 prisma/.env
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.egg-info/
+.pytest_cache/
+
 # IDEs
 .vscode/
 .idea/
 *.sublime-workspace
 *.sublime-project
+*.iml
+*.code-workspace
 
 # OS files
 .DS_Store
 Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.swp
+*.swo
+*~
+.Spotlight-V100
+.Trashes
 
 # Logs
 logs/
@@ -51,6 +74,8 @@ npm-debug.log*
 .env
 .env.*
 .env.local
+backend/.env
+frontend/.env
 
 # Editor swap
 *~
@@ -59,6 +84,7 @@ npm-debug.log*
 # Windows
 Desktop.ini
 $RECYCLE.BIN/
+*.lnk
 
 # Optional: lock files for other package managers
 pnpm-lock.yaml
@@ -90,6 +116,7 @@ coverage/
 # Local database
 *.sqlite
 *.db
+*.sql.backup
 
 # Ignore npm debug files
 npm-debug.log*
@@ -109,5 +136,52 @@ temp/
 
 # Test reports
 test-results/
+
+# Docker
+docker-data/
+docker-compose.override.yml
+.dockerignore
+
+# Uploads
+uploads/
+static/uploads/
+
+# MinIO
+minio-data/
+.minio.sys/
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Backup files
+*.backup
+*.bak
+*.tmp
+
+# Redis
+dump.rdb
+
+# Thumbnails
+._*
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Python type checkers
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+
+# Coverage
+htmlcov/
+.coverage
+.tox/
+.hypothesis/
+*.cover
+nosetests.xml
+coverage.xml
 
 # End of .gitignore

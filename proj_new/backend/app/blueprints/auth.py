@@ -47,13 +47,15 @@ def register():
         first_name=data.get('first_name'),
         last_name=data.get('last_name'),
         phone_number=data.get('phone_number'),
-        role=user_role
+        role=user_role,
+        verified=True  # 開發環境自動驗證，生產環境應改為 False
     )
     
     db.session.add(user)
     db.session.commit()
     
-    # 發送驗證郵件
+    # 發送驗證郵件 (開發環境可選)
+    # 注意: 由於 verified=True，此郵件僅供參考
     token = generate_verification_token(user.user_id, purpose='email-verify')
     email_service.send_verification_email(
         user_email=user.email,
@@ -61,9 +63,13 @@ def register():
         token=token
     )
     
+    # 自動登入：生成 access token
+    access_token = create_access_token(identity=str(user.user_id))
+    
     return jsonify({
-        'message': '註冊成功，請查看郵件進行驗證',
-        'user': user.to_dict()
+        'message': '註冊成功！帳號已自動驗證',
+        'user': user.to_dict(),
+        'access_token': access_token  # 提供 token 以便自動登入
     }), 201
 
 
@@ -79,8 +85,8 @@ def login():
     if not data.get('email') or not data.get('password'):
         abort(400, message='Email 和密碼為必填')
     
-    # 查詢使用者
-    user = User.query.filter_by(email=data['email']).first()
+    # 查詢使用者 (排除已刪除帳號)
+    user = User.query.filter_by(email=data['email'], deleted_at=None).first()
     
     if not user:
         abort(401, message='Email 或密碼錯誤')
@@ -146,10 +152,10 @@ def get_current_user():
     ---
     """
     current_user_id = int(get_jwt_identity())
-    user = User.query.get(current_user_id)
+    user = User.query.filter_by(user_id=current_user_id, deleted_at=None).first()
     
     if not user:
-        abort(404, message='使用者不存在')
+        abort(404, message='使用者不存在或已刪除')
     
     return jsonify(user.to_dict(include_sensitive=True)), 200
 

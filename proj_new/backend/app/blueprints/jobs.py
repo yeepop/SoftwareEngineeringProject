@@ -8,6 +8,7 @@ from datetime import datetime
 from app import db
 from app.models.others import Job, JobStatus
 from app.models.user import User, UserRole
+from app.services.notification_service import notification_service
 
 jobs_bp = Blueprint('jobs', __name__, description='背景任務 API')
 
@@ -161,4 +162,131 @@ def cancel_job(job_id):
         'message': '任務已取消',
         'job': job.to_dict()
     }), 200
+
+
+@jobs_bp.route('/<int:job_id>/approve', methods=['POST'])
+@jwt_required()
+def approve_job(job_id):
+    """
+    核准任務 (僅管理員)
+    主要用於需要審核的任務，如帳號刪除請求
+    """
+    current_user_id = int(get_jwt_identity())
+    user = User.query.get(current_user_id)
+    
+    # 檢查管理員權限
+    if not user or user.role != UserRole.ADMIN:
+        abort(403, message='僅管理員可執行此操作')
+    
+    job = Job.query.get(job_id)
+    if not job:
+        abort(404, message='任務不存在')
+    
+    # 只能核准待處理的任務
+    if job.status != JobStatus.PENDING:
+        abort(400, message='只能核准待處理的任務')
+    
+    data = request.get_json() or {}
+    notes = data.get('notes', '')
+    
+    # 根據任務類型執行相應操作
+    if job.type == 'user_data_deletion':
+        # 帳號刪除請求
+        user_id = job.payload.get('user_id')
+        if user_id:
+            target_user = User.query.get(user_id)
+            if target_user:
+                # 軟刪除用戶
+                target_user.deleted_at = datetime.utcnow()
+                
+                # 記錄審計日誌
+                from app.services.audit_service import audit_service
+                audit_service.log(
+                    action='user.deleted.approved',
+                    actor_id=current_user_id,
+                    target_type='user',
+                    target_id=user_id,
+                    after_state={'approved_by': current_user_id, 'notes': notes}
+                )
+    
+    # 更新任務狀態
+    job.status = JobStatus.SUCCEEDED
+    job.finished_at = datetime.utcnow()
+    job.result_summary = {
+        'approved_by': current_user_id,
+        'approved_at': datetime.utcnow().isoformat(),
+        'notes': notes
+    }
+    
+    db.session.commit()
+    
+    # 發送 Job 完成通知給建立者
+    try:
+        notification_service.notify_job_completed(job, 'SUCCEEDED')
+    except Exception as notify_error:
+        print(f'通知發送失敗: {notify_error}')
+    
+    return jsonify({
+        'message': '任務已核准',
+        'job': job.to_dict()
+    }), 200
+
+
+@jobs_bp.route('/<int:job_id>/reject', methods=['POST'])
+@jwt_required()
+def reject_job(job_id):
+    """
+    拒絕任務 (僅管理員)
+    主要用於需要審核的任務，如帳號刪除請求
+    """
+    current_user_id = int(get_jwt_identity())
+    user = User.query.get(current_user_id)
+    
+    # 檢查管理員權限
+    if not user or user.role != UserRole.ADMIN:
+        abort(403, message='僅管理員可執行此操作')
+    
+    job = Job.query.get(job_id)
+    if not job:
+        abort(404, message='任務不存在')
+    
+    # 只能拒絕待處理的任務
+    if job.status != JobStatus.PENDING:
+        abort(400, message='只能拒絕待處理的任務')
+    
+    data = request.get_json() or {}
+    reason = data.get('reason', '管理員拒絕')
+    
+    # 更新任務狀態
+    job.status = JobStatus.FAILED
+    job.finished_at = datetime.utcnow()
+    job.result_summary = {
+        'rejected_by': current_user_id,
+        'rejected_at': datetime.utcnow().isoformat(),
+        'reason': reason
+    }
+    
+    db.session.commit()
+    
+    # 記錄審計日誌
+    from app.services.audit_service import audit_service
+    audit_service.log(
+        action='job.rejected',
+        actor_id=current_user_id,
+        target_type='job',
+        target_id=job_id,
+        after_state={'reason': reason}
+    )
+    
+    # 發送 Job 完成通知給建立者
+    try:
+        notification_service.notify_job_completed(job, 'FAILED')
+    except Exception as notify_error:
+        print(f'通知發送失敗: {notify_error}')
+    
+    return jsonify({
+        'message': '任務已拒絕',
+        'job': job.to_dict()
+    }), 200
+
 

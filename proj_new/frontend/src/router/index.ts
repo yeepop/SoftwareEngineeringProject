@@ -24,6 +24,7 @@ const Shelters = () => import('@/pages/Shelters.vue')
 const ShelterDetail = () => import('@/pages/ShelterDetail.vue')
 const AuditLogs = () => import('@/pages/AuditLogs.vue')
 const UserProfile = () => import('@/pages/UserProfile.vue')
+const AdminUsers = () => import('@/pages/AdminUsers.vue')
 
 const routes: RouteRecordRaw[] = [
   {
@@ -145,6 +146,12 @@ const routes: RouteRecordRaw[] = [
     name: 'AuditLogs',
     component: AuditLogs,
     meta: { title: '審計日誌', requiresAuth: true, requiresRole: 'ADMIN' }
+  },
+  {
+    path: '/admin/users',
+    name: 'AdminUsers',
+    component: AdminUsers,
+    meta: { title: '用戶管理', requiresAuth: true, requiresRole: 'ADMIN' }
   },
   {
     path: '/profile',

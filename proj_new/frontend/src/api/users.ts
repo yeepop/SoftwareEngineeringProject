@@ -40,7 +40,7 @@ export interface UserUpdateData {
  * 變更密碼資料
  */
 export interface ChangePasswordData {
-  current_password: string
+  old_password: string
   new_password: string
 }
 

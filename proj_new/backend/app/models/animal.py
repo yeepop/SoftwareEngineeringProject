@@ -21,10 +21,11 @@ class Sex(str, Enum):
 
 class AnimalStatus(str, Enum):
     """動物狀態枚舉"""
-    DRAFT = 'DRAFT'
-    SUBMITTED = 'SUBMITTED'
-    PUBLISHED = 'PUBLISHED'
-    RETIRED = 'RETIRED'
+    DRAFT = 'DRAFT'  # 草稿
+    SUBMITTED = 'SUBMITTED'  # 已提交審核
+    PUBLISHED = 'PUBLISHED'  # 已發布
+    ADOPTED = 'ADOPTED'  # 已被領養
+    RETIRED = 'RETIRED'  # 已下架
 
 
 class Animal(db.Model):

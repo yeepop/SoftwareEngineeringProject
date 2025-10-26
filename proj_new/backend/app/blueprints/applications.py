@@ -12,6 +12,7 @@ from app.models.application import Application, ApplicationStatus
 from app.models.user import User, UserRole
 from app.models.animal import Animal
 from app.services.audit_service import audit_service
+from app.services.notification_service import notification_service
 
 applications_bp = Blueprint('applications', __name__, description='領養申請 API')
 
@@ -94,7 +95,11 @@ def create_application():
         if not animal:
             abort(404, message='動物不存在')
         
-        if animal.status != 'PUBLISHED':
+        # 檢查動物狀態 - 只有 PUBLISHED 可申請
+        from app.models.animal import AnimalStatus
+        if animal.status == AnimalStatus.ADOPTED:
+            abort(400, message='此動物已被領養')
+        if animal.status != AnimalStatus.PUBLISHED:
             abort(400, message='此動物目前無法申請領養')
         
         # 檢查申請人不能是刊登者本人
@@ -136,6 +141,21 @@ def create_application():
         
         db.session.add(application)
         db.session.commit()
+        
+        # 發送通知給動物擁有者
+        try:
+            applicant = User.query.get(current_user_id)
+            applicant_name = applicant.username or applicant.email if applicant else '未知用戶'
+            animal_name = animal.name or f'動物 #{animal.animal_id}'
+            
+            notification_service.notify_application_submitted(
+                application=application,
+                applicant_name=applicant_name,
+                animal_name=animal_name
+            )
+        except Exception as notify_error:
+            # 通知失敗不影響主流程
+            print(f'通知發送失敗: {notify_error}')
         
         return jsonify({
             'message': '申請已提交',
@@ -222,6 +242,13 @@ def review_application(application_id):
         # 更新申請狀態
         if action == 'approve':
             application.status = ApplicationStatus.APPROVED
+            
+            # 批准申請時，將動物狀態改為已領養
+            animal = Animal.query.get(application.animal_id)
+            if animal:
+                from app.models.animal import AnimalStatus
+                animal.status = AnimalStatus.ADOPTED
+                animal.updated_at = datetime.utcnow()
         else:
             application.status = ApplicationStatus.REJECTED
         
@@ -239,6 +266,18 @@ def review_application(application_id):
             old_status.value,
             application.status.value
         )
+        
+        # 發送審核結果通知給申請人
+        try:
+            notification_service.notify_application_reviewed(
+                application=application,
+                reviewer_id=current_user_id,
+                status=application.status.value,
+                review_notes=application.review_notes
+            )
+        except Exception as notify_error:
+            # 通知失敗不影響主流程
+            print(f'通知發送失敗: {notify_error}')
         
         return jsonify({
             'message': f'申請已{("核准" if action == "approve" else "拒絕")}',
@@ -286,6 +325,18 @@ def assign_application(application_id):
         application.version += 1
         
         db.session.commit()
+        
+        # 發送進入審核通知給申請人
+        try:
+            assignee_name = assignee.username or assignee.email
+            notification_service.notify_application_under_review(
+                application=application,
+                assignee_id=assignee_id,
+                assignee_name=assignee_name
+            )
+        except Exception as notify_error:
+            # 通知失敗不影響主流程
+            print(f'通知發送失敗: {notify_error}')
         
         return jsonify({
             'message': '已指派處理人員',

@@ -258,6 +258,74 @@ docker-compose exec redis redis-cli FLUSHALL
 - CORS 配置是否正確
 - Vite 代理配置是否正確
 
+### Q: 通知下拉選單點擊後立即關閉？
+**問題原因**: 事件冒泡導致 v-click-outside directive 誤判
+
+**解決方案**:
+1. 在鈴鐺按鈕使用 `@click.stop` 阻止事件冒泡
+2. 在 v-click-outside directive 中使用 `setTimeout` 延遲事件監聽器註冊
+
+參考: `frontend/src/components/NotificationBell.vue`
+
+### Q: 儲存草稿沒有呼叫 API？
+**問題原因**: saveDraft() 只儲存到 localStorage
+
+**解決方案**:
+1. 修改 `saveDraft()` 函數呼叫 `createAnimal()` 或 `updateAnimal()` API
+2. 儲存返回的 animal_id 以便後續更新
+3. 同時保留 localStorage 備份機制
+
+參考: `frontend/src/pages/RehomeForm.vue`
+
+### Q: AdminUsers.vue 編譯錯誤？
+**問題原因**: SVG 路徑中的 `\u` 被誤認為 Unicode 轉義序列
+
+**解決方案**:
+1. 在 SVG 路徑中的 `A8.001` 添加空格 → `A 8.001`
+2. 使用模板字符串而非錯誤的轉義字符串
+3. 確保導入 `useAuthStore` 並使用 `authStore.accessToken`
+
+### Q: 測試帳號無法登入？
+**可能原因**: 帳號被軟刪除 (deleted_at 欄位有值)
+
+**解決方案**:
+```sql
+-- 恢復被軟刪除的帳號
+UPDATE users 
+SET deleted_at = NULL 
+WHERE email IN ('admin@test.com', 'test@example.com', 'shelter@test.com');
+```
+
+參考: `proj_new/TEST_ACCOUNTS.md` 中的問題修復記錄
+
+## 最近修復記錄 (2025-10-26)
+
+### 1. ✅ 管理員用戶管理頁面
+- 新增 `AdminUsers.vue` (715 行)
+- 功能: 搜尋、篩選、分頁、封禁用戶
+- 路由: `/admin/users` (需 ADMIN 角色)
+
+### 2. ✅ 任務審批系統
+- 後端: `jobs.py` 新增 `approve_job()` 和 `reject_job()` 端點
+- 前端: `Jobs.vue` 新增管理員審批介面
+- 通知整合: 任務完成/失敗自動發送通知
+
+### 3. ✅ 通知系統
+- 新增 `NotificationService` (212 行)
+- 7 種通知類型支援
+- 整合到 applications.py 和 jobs.py
+- 前端: `NotificationBell.vue` 下拉選單修復
+
+### 4. ✅ 草稿儲存功能
+- 修復 `RehomeForm.vue` 的 `saveDraft()` 函數
+- 現在正確呼叫 API 儲存到資料庫
+- 避免重複創建草稿記錄
+
+### 5. ✅ AdminDashboard 載入錯誤
+- 問題: 測試帳號被軟刪除
+- 修復: 恢復 deleted_at = NULL
+- 所有測試帳號已恢復正常
+
 ## 相關資源
 
 - [Flask 文檔](https://flask.palletsprojects.com/)

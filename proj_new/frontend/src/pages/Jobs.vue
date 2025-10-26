@@ -87,18 +87,43 @@
               <span class="detail-label">開始時間:</span>
               <span class="detail-value">{{ formatDateTime(job.started_at) }}</span>
             </div>
-            <div v-if="job.completed_at" class="detail-item">
+            <div v-if="job.finished_at" class="detail-item">
               <span class="detail-label">完成時間:</span>
-              <span class="detail-value">{{ formatDateTime(job.completed_at) }}</span>
+              <span class="detail-value">{{ formatDateTime(job.finished_at) }}</span>
             </div>
-            <div v-if="job.error" class="detail-item">
+            <div v-if="job.result_summary?.error" class="detail-item">
               <span class="detail-label">錯誤訊息:</span>
-              <span class="detail-value error-text">{{ job.error }}</span>
+              <span class="detail-value error-text">{{ job.result_summary.error }}</span>
             </div>
           </div>
 
           <!-- 操作按鈕 -->
           <div class="job-actions">
+            <!-- 管理員審核按鈕 (僅顯示給管理員,且任務為 PENDING) -->
+            <button 
+              v-if="isAdmin && job.status === 'PENDING' && needsApproval(job.type)" 
+              @click="openApproveModal(job)"
+              class="btn-approve"
+              :disabled="approvingJobs.has(job.job_id)"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              </svg>
+              {{ approvingJobs.has(job.job_id) ? '核准中...' : '核准' }}
+            </button>
+            <button 
+              v-if="isAdmin && job.status === 'PENDING' && needsApproval(job.type)" 
+              @click="openRejectModal(job)"
+              class="btn-reject"
+              :disabled="rejectingJobs.has(job.job_id)"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              {{ rejectingJobs.has(job.job_id) ? '拒絕中...' : '拒絕' }}
+            </button>
+            
+            <!-- 原有按鈕 -->
             <button 
               v-if="job.status === 'FAILED'" 
               @click="handleRetry(job.job_id)"
@@ -111,7 +136,7 @@
               {{ retryingJobs.has(job.job_id) ? '重試中...' : '重試' }}
             </button>
             <button 
-              v-if="['PENDING', 'RUNNING'].includes(job.status)" 
+              v-if="['PENDING', 'RUNNING'].includes(job.status) && (!isAdmin || !needsApproval(job.type))" 
               @click="handleCancel(job.job_id)"
               class="btn-cancel"
               :disabled="cancelingJobs.has(job.job_id)"
@@ -133,20 +158,104 @@
         <span>每 5 秒自動更新</span>
       </div>
     </div>
+
+    <!-- 核准模態框 -->
+    <div v-if="showApproveModal" class="modal-overlay" @click="closeApproveModal">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h3>核准任務</h3>
+          <button class="modal-close" @click="closeApproveModal">×</button>
+        </div>
+        <div class="modal-body">
+          <p class="modal-description">
+            確定要核准此任務嗎?
+          </p>
+          <div v-if="selectedJob" class="job-summary">
+            <p><strong>任務類型:</strong> {{ getJobTypeLabel(selectedJob.type) }}</p>
+            <p><strong>任務ID:</strong> #{{ selectedJob.job_id }}</p>
+          </div>
+          <div class="form-group">
+            <label for="approve-notes">備註 (選填)</label>
+            <textarea
+              id="approve-notes"
+              v-model="approveNotes"
+              placeholder="輸入核准備註..."
+              rows="3"
+            ></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button @click="closeApproveModal" class="btn-secondary">取消</button>
+          <button @click="handleApprove" class="btn-primary" :disabled="approvingJobs.has(selectedJob?.job_id || 0)">
+            {{ approvingJobs.has(selectedJob?.job_id || 0) ? '核准中...' : '確認核准' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 拒絕模態框 -->
+    <div v-if="showRejectModal" class="modal-overlay" @click="closeRejectModal">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h3>拒絕任務</h3>
+          <button class="modal-close" @click="closeRejectModal">×</button>
+        </div>
+        <div class="modal-body">
+          <p class="modal-description">
+            請提供拒絕理由
+          </p>
+          <div v-if="selectedJob" class="job-summary">
+            <p><strong>任務類型:</strong> {{ getJobTypeLabel(selectedJob.type) }}</p>
+            <p><strong>任務ID:</strong> #{{ selectedJob.job_id }}</p>
+          </div>
+          <div class="form-group">
+            <label for="reject-reason">拒絕理由 <span class="required">*</span></label>
+            <textarea
+              id="reject-reason"
+              v-model="rejectReason"
+              placeholder="輸入拒絕理由..."
+              rows="3"
+              required
+            ></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button @click="closeRejectModal" class="btn-secondary">取消</button>
+          <button @click="handleReject" class="btn-danger" :disabled="!rejectReason.trim() || rejectingJobs.has(selectedJob?.job_id || 0)">
+            {{ rejectingJobs.has(selectedJob?.job_id || 0) ? '拒絕中...' : '確認拒絕' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
-import { getJobs, retryJob, cancelJob } from '@/api/jobs'
+import { getJobs, retryJob, cancelJob, approveJob, rejectJob } from '@/api/jobs'
+import { useAuthStore } from '@/stores/auth'
 import type { Job } from '@/types/models'
 
+const authStore = useAuthStore()
 const jobs = ref<Job[]>([])
 const loading = ref(false)
 const filterStatus = ref<string | null>(null)
 const retryingJobs = ref(new Set<number>())
 const cancelingJobs = ref(new Set<number>())
+const approvingJobs = ref(new Set<number>())
+const rejectingJobs = ref(new Set<number>())
+
+// 模態框狀態
+const showApproveModal = ref(false)
+const showRejectModal = ref(false)
+const selectedJob = ref<Job | null>(null)
+const approveNotes = ref('')
+const rejectReason = ref('')
+
 let pollInterval: number | null = null
+
+// 檢查是否為管理員
+const isAdmin = computed(() => authStore.user?.role === 'ADMIN')
 
 // 計算各狀態數量
 const statusCounts = computed(() => {
@@ -165,6 +274,82 @@ const statusCounts = computed(() => {
 })
 
 const totalCount = computed(() => jobs.value.length)
+
+// 判斷任務是否需要審核
+function needsApproval(jobType: string): boolean {
+  const approvalTypes = ['user_data_deletion', 'data_export', 'batch_update']
+  return approvalTypes.includes(jobType)
+}
+
+// 打開核准模態框
+function openApproveModal(job: Job) {
+  selectedJob.value = job
+  approveNotes.value = ''
+  showApproveModal.value = true
+}
+
+// 關閉核准模態框
+function closeApproveModal() {
+  showApproveModal.value = false
+  selectedJob.value = null
+  approveNotes.value = ''
+}
+
+// 打開拒絕模態框
+function openRejectModal(job: Job) {
+  selectedJob.value = job
+  rejectReason.value = ''
+  showRejectModal.value = true
+}
+
+// 關閉拒絕模態框
+function closeRejectModal() {
+  showRejectModal.value = false
+  selectedJob.value = null
+  rejectReason.value = ''
+}
+
+// 核准任務
+async function handleApprove() {
+  if (!selectedJob.value) return
+  
+  const jobId = selectedJob.value.job_id
+  if (approvingJobs.value.has(jobId)) return
+  
+  try {
+    approvingJobs.value.add(jobId)
+    await approveJob(jobId, approveNotes.value)
+    closeApproveModal()
+    await loadJobs()
+    alert('任務已核准')
+  } catch (error: any) {
+    console.error('核准任務失敗:', error)
+    alert(error.response?.data?.message || '核准失敗')
+  } finally {
+    approvingJobs.value.delete(jobId)
+  }
+}
+
+// 拒絕任務
+async function handleReject() {
+  if (!selectedJob.value || !rejectReason.value.trim()) return
+  
+  const jobId = selectedJob.value.job_id
+  if (rejectingJobs.value.has(jobId)) return
+  
+  try {
+    rejectingJobs.value.add(jobId)
+    await rejectJob(jobId, rejectReason.value)
+    closeRejectModal()
+    await loadJobs()
+    alert('任務已拒絕')
+  } catch (error: any) {
+    console.error('拒絕任務失敗:', error)
+    alert(error.response?.data?.message || '拒絕失敗')
+  } finally {
+    rejectingJobs.value.delete(jobId)
+  }
+}
 
 // 載入任務列表
 async function loadJobs() {
@@ -220,6 +405,7 @@ async function handleCancel(jobId: number) {
 // 取得任務類型標籤
 function getJobTypeLabel(type: string): string {
   const labels: Record<string, string> = {
+    'user_data_deletion': '帳號刪除請求',
     'data_import': '資料匯入',
     'report_generation': '報告生成',
     'email_notification': '郵件通知',
@@ -252,8 +438,8 @@ function getStatusClass(status: string): string {
 }
 
 // 取得進度百分比
-function getProgress(job: Job): number {
-  // 如果任務有提供進度資訊，使用它
+function getProgress(_job: Job): number {
+  // 如果任務有提供進度資訊,使用它
   // 否則使用預設值 (執行中顯示 50%)
   return 50
 }
@@ -542,7 +728,9 @@ onUnmounted(() => {
 }
 
 .btn-retry,
-.btn-cancel {
+.btn-cancel,
+.btn-approve,
+.btn-reject {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -553,6 +741,24 @@ onUnmounted(() => {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
+}
+
+.btn-approve {
+  background: #10b981;
+  color: white;
+}
+
+.btn-approve:hover:not(:disabled) {
+  background: #059669;
+}
+
+.btn-reject {
+  background: #f59e0b;
+  color: white;
+}
+
+.btn-reject:hover:not(:disabled) {
+  background: #d97706;
 }
 
 .btn-retry {
@@ -574,7 +780,177 @@ onUnmounted(() => {
 }
 
 .btn-retry:disabled,
-.btn-cancel:disabled {
+.btn-cancel:disabled,
+.btn-approve:disabled,
+.btn-reject:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 模態框 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.modal-header h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 2rem;
+  color: #9ca3af;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.modal-close:hover {
+  background: #f3f4f6;
+  color: #1f2937;
+}
+
+.modal-body {
+  padding: 1.5rem;
+}
+
+.modal-description {
+  color: #6b7280;
+  margin-bottom: 1rem;
+}
+
+.job-summary {
+  background: #f9fafb;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.job-summary p {
+  margin: 0.5rem 0;
+  color: #1f2937;
+}
+
+.form-group {
+  margin-bottom: 1rem;
+}
+
+.form-group label {
+  display: block;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.5rem;
+}
+
+.required {
+  color: #ef4444;
+}
+
+.form-group textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-family: inherit;
+  resize: vertical;
+  transition: border-color 0.2s;
+}
+
+.form-group textarea:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.modal-footer {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  padding: 1.5rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.btn-primary,
+.btn-secondary,
+.btn-danger {
+  padding: 0.625rem 1.25rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background: #10b981;
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #059669;
+}
+
+.btn-danger {
+  background: #ef4444;
+  color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #dc2626;
+}
+
+.btn-secondary {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.btn-secondary:hover {
+  background: #e5e7eb;
+}
+
+.btn-primary:disabled,
+.btn-danger:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

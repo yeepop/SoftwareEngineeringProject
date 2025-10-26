@@ -51,3 +51,19 @@ export async function cancelJob(jobId: number) {
   const response = await api.post<{ message: string; job: Job }>(`/jobs/${jobId}/cancel`)
   return response.data
 }
+
+/**
+ * 核准任務 (僅管理員)
+ */
+export async function approveJob(jobId: number, notes?: string) {
+  const response = await api.post<{ message: string; job: Job }>(`/jobs/${jobId}/approve`, { notes })
+  return response.data
+}
+
+/**
+ * 拒絕任務 (僅管理員)
+ */
+export async function rejectJob(jobId: number, reason: string) {
+  const response = await api.post<{ message: string; job: Job }>(`/jobs/${jobId}/reject`, { reason })
+  return response.data
+}

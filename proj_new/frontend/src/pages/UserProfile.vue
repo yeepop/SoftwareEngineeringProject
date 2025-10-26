@@ -149,7 +149,7 @@
                   目前密碼 <span class="text-red-500">*</span>
                 </label>
                 <input
-                  v-model="passwordForm.current_password"
+                  v-model="passwordForm.old_password"
                   type="password"
                   required
                   placeholder="請輸入目前密碼"
@@ -377,7 +377,7 @@ const profileForm = ref<UserUpdateData>({
 })
 
 const passwordForm = ref<ChangePasswordData & { confirm_password: string }>({
-  current_password: '',
+  old_password: '',
   new_password: '',
   confirm_password: ''
 })
@@ -451,7 +451,7 @@ const changeUserPassword = async () => {
 
   try {
     await changePassword(authStore.user.user_id, {
-      current_password: passwordForm.value.current_password,
+      old_password: passwordForm.value.old_password,
       new_password: passwordForm.value.new_password
     })
     
@@ -520,7 +520,7 @@ const resetProfileForm = () => {
 
 const resetPasswordForm = () => {
   passwordForm.value = {
-    current_password: '',
+    old_password: '',
     new_password: '',
     confirm_password: ''
   }

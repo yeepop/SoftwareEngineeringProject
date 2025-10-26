@@ -39,6 +39,52 @@ def check_shelter_member_or_admin(user_id, shelter_id=None):
     return False
 
 
+@shelters_bp.route('', methods=['GET'])
+def list_shelters():
+    """
+    獲取收容所列表 (公開端點)
+    支援分頁和搜尋
+    """
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    search = request.args.get('search', '')
+    verified_only = request.args.get('verified', 'false').lower() == 'true'
+    
+    # 驗證分頁參數
+    if page < 1:
+        page = 1
+    if per_page < 1 or per_page > 100:
+        per_page = 10
+    
+    # 構建查詢
+    query = Shelter.query.filter_by(deleted_at=None)
+    
+    # 搜尋過濾
+    if search:
+        query = query.filter(
+            db.or_(
+                Shelter.name.ilike(f'%{search}%'),
+                Shelter.contact_email.ilike(f'%{search}%')
+            )
+        )
+    
+    # 僅顯示已驗證收容所
+    if verified_only:
+        query = query.filter_by(verified=True)
+    
+    # 排序和分頁
+    query = query.order_by(Shelter.created_at.desc())
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    
+    return jsonify({
+        'shelters': [shelter.to_dict() for shelter in pagination.items],
+        'total': pagination.total,
+        'page': page,
+        'per_page': per_page,
+        'pages': pagination.pages
+    }), 200
+
+
 @shelters_bp.route('', methods=['POST'])
 @jwt_required()
 def create_shelter():
