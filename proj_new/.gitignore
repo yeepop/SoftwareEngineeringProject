@@ -107,7 +107,6 @@ minio-data/
 .minio.sys/
 
 # Uploads
-uploads/
 backend/uploads/
 static/uploads/
 
