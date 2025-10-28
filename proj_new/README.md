@@ -121,6 +121,7 @@ proj_new/
 
 ```bash
 # 複製環境變數檔案
+cp .env.example .env
 cp backend/.env.example backend/.env
 cp frontend/.env.example frontend/.env
 
