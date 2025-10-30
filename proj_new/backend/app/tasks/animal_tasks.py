@@ -44,13 +44,17 @@ def process_animal_batch_import(self, job_id: int) -> Dict[str, Any]:
         photos_data = job.payload.get('photos', [])
         options = job.payload.get('options', {})
         
+        # 驗證必要參數
+        if not shelter_id:
+            raise ValueError('Missing shelter_id in job payload')
+        
+        if not animal_csv_content:
+            raise ValueError('Missing animal_csv_content in job payload')
+        
         # 驗證 shelter 存在
         shelter = Shelter.query.get(shelter_id)
         if not shelter:
             raise ValueError(f'Shelter {shelter_id} not found')
-        
-        if not animal_csv_content:
-            raise ValueError('Missing animal_csv_content in job payload')
         
         # 統計
         stats = {
@@ -66,10 +70,32 @@ def process_animal_batch_import(self, job_id: int) -> Dict[str, Any]:
         
         # === 第一階段: 解析動物 CSV 並建立 animal_code → animal_id 映射 ===
         animal_code_map = {}  # {animal_code: animal_id}
+        
+        try:
+            csv_reader = csv.DictReader(io.StringIO(animal_csv_content))
+            headers = csv_reader.fieldnames
+            
+            # 驗證 CSV 標題
+            required_headers = ['animal_code', 'name', 'species', 'breed', 'sex', 'dob', 'color', 'description']
+            if not headers:
+                raise ValueError('CSV file has no headers')
+            
+            missing_headers = [h for h in required_headers if h not in headers]
+            if missing_headers:
+                raise ValueError(f'CSV missing required headers: {", ".join(missing_headers)}')
+                
+        except Exception as e:
+            raise ValueError(f'Invalid CSV format: {str(e)}')
+        
+        # 重新創建 reader (因為 fieldnames 消耗了迭代器)
         csv_reader = csv.DictReader(io.StringIO(animal_csv_content))
         
         for row_num, row in enumerate(csv_reader, start=2):
             stats['total_animals'] += 1
+            
+            # 錯誤太多時提前終止
+            if stats['failed_animals'] > 100:
+                raise ValueError(f'Too many errors ({stats["failed_animals"]}), aborting import')
             
             try:
                 # 驗證必填欄位
@@ -113,6 +139,7 @@ def process_animal_batch_import(self, job_id: int) -> Dict[str, Any]:
                     dob=dob,
                     description=row['description'].strip(),
                     status=AnimalStatus.DRAFT,
+                    owner_id=job.created_by,  # 設置 owner_id
                     created_by=job.created_by,
                     created_at=datetime.utcnow(),
                     updated_at=datetime.utcnow()
@@ -202,7 +229,6 @@ def process_animal_batch_import(self, job_id: int) -> Dict[str, Any]:
         
         # === 第三階段: 處理照片 (選填) ===
         if photos_data:
-            import base64
             import re
             
             # 解析檔名格式: {animal_code}_{order}.{ext}
@@ -227,18 +253,16 @@ def process_animal_batch_import(self, job_id: int) -> Dict[str, Any]:
                     
                     animal_id = animal_code_map[animal_code]
                     
-                    # TODO: 上傳照片到 MinIO
-                    # 目前暫存 base64 在資料庫 (未來改用 MinIO URL)
-                    photo_binary = base64.b64decode(photo['data'])
-                    
-                    # 臨時方案: 將照片資料存入 AnimalImage 的 image_url (實際應上傳到 MinIO)
-                    # 未來改為: image_url = minio_service.upload(photo_binary, filename)
-                    image_url = f"data:{photo['content_type']};base64,{photo['data'][:100]}..."  # 暫存前100字元
+                    # 使用 MinIO URL 和 storage_key (照片已在 shelters.py 上傳到 MinIO)
+                    image_url = photo['url']
+                    storage_key = photo['storage_key']
                     
                     animal_image = AnimalImage(
                         animal_id=animal_id,
-                        image_url=image_url,  # 未來改為 MinIO URL
-                        display_order=order,
+                        storage_key=storage_key,
+                        url=image_url,
+                        mime_type=photo.get('content_type', 'image/jpeg'),
+                        order=order,
                         created_at=datetime.utcnow()
                     )
                     
@@ -279,17 +303,23 @@ def process_animal_batch_import(self, job_id: int) -> Dict[str, Any]:
         return stats
         
     except Exception as exc:
-        # 更新 job 狀態為失敗
-        job.status = JobStatus.FAILED
-        job.completed_at = datetime.utcnow()
-        job.result_summary = {
-            'error': str(exc),
-            'error_type': type(exc).__name__
-        }
-        db.session.commit()
-        
         # Rollback 所有變更
         db.session.rollback()
+        
+        # 更新 job 狀態為失敗
+        try:
+            job = Job.query.get(job_id)  # 重新查詢 job (因為已 rollback)
+            if job:
+                job.status = JobStatus.FAILED
+                job.completed_at = datetime.utcnow()
+                job.result_summary = {
+                    'error': str(exc),
+                    'error_type': type(exc).__name__,
+                    'traceback': __import__('traceback').format_exc()
+                }
+                db.session.commit()
+        except Exception as update_error:
+            print(f'Failed to update job status: {update_error}')
         
         # 重試機制
         if self.request.retries < self.max_retries:

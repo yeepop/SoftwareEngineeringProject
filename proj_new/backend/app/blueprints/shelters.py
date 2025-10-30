@@ -1,6 +1,7 @@
 """
 Shelters Blueprint - 收容所管理 API
 """
+import base64
 from flask import jsonify, request
 from flask_smorest import Blueprint, abort
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -336,6 +337,14 @@ def batch_upload_animals(shelter_id):
     if 'photos' in request.files:
         photos = request.files.getlist('photos')
         
+        # 導入 MinIO 客戶端
+        from app.blueprints.uploads import minio_client, minio_available
+        from config import Config
+        import uuid as uuid_lib
+        
+        if not minio_available:
+            abort(500, message='MinIO 服務不可用')
+        
         for photo in photos:
             if photo.filename and photo.filename != '':
                 # 驗證檔案類型
@@ -350,47 +359,77 @@ def batch_upload_animals(shelter_id):
                 if photo_size > 5 * 1024 * 1024:
                     abort(400, message=f'照片 {photo.filename} 超過 5MB 限制')
                 
-                # 讀取照片二進制數據並轉為 base64 (暫存於 payload)
-                import base64
-                photo_binary = photo.read()
-                photo_base64 = base64.b64encode(photo_binary).decode('utf-8')
-                
-                photos_data.append({
-                    'filename': photo.filename,
-                    'content_type': photo.content_type,
-                    'data': photo_base64  # 未來改用 MinIO
-                })
+                # 上傳照片到 MinIO
+                try:
+                    # 生成唯一的 object key
+                    ext = photo.filename.split('.')[-1] if '.' in photo.filename else 'jpg'
+                    object_key = f"batch-uploads/{shelter_id}/{uuid_lib.uuid4()}.{ext}"
+                    
+                    # 上傳到 MinIO
+                    minio_client.put_object(
+                        bucket_name=Config.MINIO_BUCKET,
+                        object_name=object_key,
+                        data=photo,
+                        length=photo_size,
+                        content_type=photo.content_type or 'image/jpeg'
+                    )
+                    
+                    # 生成公開 URL
+                    photo_url = f"http://{Config.MINIO_EXTERNAL_ENDPOINT or 'localhost:9000'}/{Config.MINIO_BUCKET}/{object_key}"
+                    
+                    photos_data.append({
+                        'filename': photo.filename,
+                        'content_type': photo.content_type,
+                        'storage_key': object_key,
+                        'url': photo_url,
+                        'size': photo_size
+                    })
+                except Exception as e:
+                    db.session.rollback()
+                    abort(400, message=f'上傳照片 {photo.filename} 到 MinIO 失敗: {str(e)}')
+    
+    # 獲取醫療記錄檔名 (安全處理)
+    medical_csv_filename = None
+    if 'medical_csv' in request.files:
+        medical_file = request.files['medical_csv']
+        if medical_file and medical_file.filename:
+            medical_csv_filename = medical_file.filename
     
     # 創建 Job 記錄
-    job = Job(
-        job_type=JobType.IMPORT_ANIMALS,
-        status=JobStatus.PENDING,
-        created_by=current_user_id,
-        payload={
-            'shelter_id': shelter_id,
-            'animal_csv_content': animal_csv_content,
-            'medical_csv_content': medical_csv_content,
-            'photos': photos_data,
-            'animal_csv_filename': animal_csv.filename,
-            'medical_csv_filename': request.files['medical_csv'].filename if 'medical_csv' in request.files and request.files['medical_csv'].filename else None,
-            'options': {}
-        }
-    )
-    
-    db.session.add(job)
-    db.session.commit()
-    
-    # 將 job 加入 Celery 隊列
-    from app.tasks import process_animal_batch_import
-    process_animal_batch_import.delay(job.job_id)
-    
-    return jsonify({
-        'message': '批次匯入已加入隊列',
-        'job_id': job.job_id,
-        'status': job.status.value,
-        'files_received': {
-            'animal_csv': animal_csv.filename,
-            'medical_csv': request.files['medical_csv'].filename if 'medical_csv' in request.files and request.files['medical_csv'].filename else None,
-            'photos_count': len(photos_data)
-        }
-    }), 202
+    try:
+        job = Job(
+            type=JobType.IMPORT_ANIMALS.value,
+            status=JobStatus.PENDING,
+            created_by=current_user_id,
+            payload={
+                'shelter_id': shelter_id,
+                'animal_csv_content': animal_csv_content,
+                'medical_csv_content': medical_csv_content,
+                'photos': photos_data,
+                'animal_csv_filename': animal_csv.filename,
+                'medical_csv_filename': medical_csv_filename,
+                'options': {}
+            }
+        )
+        
+        db.session.add(job)
+        db.session.commit()
+        
+        # 將 job 加入 Celery 隊列
+        from app.tasks import process_animal_batch_import
+        process_animal_batch_import.delay(job.job_id)
+        
+        return jsonify({
+            'message': '批次匯入已加入隊列',
+            'job_id': job.job_id,
+            'status': job.status.value,
+            'files_received': {
+                'animal_csv': animal_csv.filename,
+                'medical_csv': medical_csv_filename,
+                'photos_count': len(photos_data)
+            }
+        }), 202
+        
+    except Exception as e:
+        db.session.rollback()
+        abort(500, message=f'創建批次匯入任務失敗: {str(e)}')

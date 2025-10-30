@@ -30,6 +30,7 @@ def list_animals():
     status = request.args.get('status')
     shelter_id = request.args.get('shelter_id')
     owner_id = request.args.get('owner_id', type=int)
+    created_by = request.args.get('created_by', type=int)
     q = request.args.get('q', '').strip()
     page = request.args.get('page', 1, type=int)
     per_page = min(request.args.get('per_page', 20, type=int), 100)
@@ -37,10 +38,12 @@ def list_animals():
     # 建立查詢
     query = Animal.query.filter_by(deleted_at=None)
     
-    # 如果有 owner_id 參數，查詢該用戶的所有動物(包含草稿)
+    # 如果有 owner_id 或 created_by 參數，查詢該用戶的所有動物(包含草稿)
     # 否則預設只顯示已發布的動物
     if owner_id:
         query = query.filter_by(owner_id=owner_id)
+    elif created_by:
+        query = query.filter_by(created_by=created_by)
     else:
         # 預設只顯示已發布的動物
         if not status:

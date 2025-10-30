@@ -32,8 +32,9 @@ def list_jobs():
     # 限制 per_page
     per_page = min(per_page, 100)
     
-    # 構建查詢
-    query = Job.query
+    # 構建查詢 (延遲載入大型欄位以避免記憶體問題)
+    from sqlalchemy.orm import defer
+    query = Job.query.options(defer(Job.payload), defer(Job.result_summary))
     
     # 過濾條件
     if job_type:

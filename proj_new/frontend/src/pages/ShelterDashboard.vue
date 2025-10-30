@@ -550,7 +550,7 @@ async function loadJobs() {
   
   try {
     const response = await getJobs({
-      type: 'IMPORT_ANIMALS',
+      type: 'import_animals',
       per_page: 10
     })
     jobs.value = response.jobs

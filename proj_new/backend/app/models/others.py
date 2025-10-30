@@ -79,18 +79,30 @@ class Job(db.Model):
     
     def to_dict(self):
         """轉換為字典"""
-        return {
+        from sqlalchemy.orm import object_session
+        from sqlalchemy.inspection import inspect
+        
+        # 檢查屬性是否已載入
+        state = inspect(self)
+        
+        result = {
             'job_id': self.job_id,
             'type': self.type,
             'status': self.status.value if self.status else None,
-            'payload': self.payload,
-            'result_summary': self.result_summary,
             'created_by': self.created_by,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'started_at': self.started_at.isoformat() if self.started_at else None,
             'finished_at': self.finished_at.isoformat() if self.finished_at else None,
             'attempts': self.attempts,
         }
+        
+        # 只在已載入時才加入 payload 和 result_summary
+        if 'payload' not in state.unloaded:
+            result['payload'] = self.payload
+        if 'result_summary' not in state.unloaded:
+            result['result_summary'] = self.result_summary
+            
+        return result
 
 
 class Attachment(db.Model):

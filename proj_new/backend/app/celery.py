@@ -11,7 +11,8 @@ flask_app = create_app()
 celery = Celery(
     flask_app.import_name,
     broker=flask_app.config['CELERY_BROKER_URL'],
-    backend=flask_app.config['CELERY_RESULT_BACKEND']
+    backend=flask_app.config['CELERY_RESULT_BACKEND'],
+    include=['app.tasks.animal_tasks', 'app.tasks.email_tasks']  # 明確指定 task 模組
 )
 
 # 更新 Celery 配置
