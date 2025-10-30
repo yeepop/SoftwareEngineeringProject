@@ -112,7 +112,12 @@
                 💙 此動物已被領養
               </div>
               
-              <!-- 我想領養按鈕 (非自己的動物且未被領養才顯示) -->
+              <!-- 有待審核申請提示 -->
+              <div v-else-if="animal.has_pending_application && animal.status === 'PUBLISHED'" class="flex-1 bg-orange-50 border-2 border-orange-200 text-orange-800 px-6 py-3 rounded-lg font-semibold text-center">
+                📝 此動物目前有待審核的領養申請,請等待審核結果後再提出申請
+              </div>
+              
+              <!-- 我想領養按鈕 (非自己的動物且未被領養且無待審核申請才顯示) -->
               <button
                 v-else-if="animal.status === 'PUBLISHED' && isAuthenticated && !isMyAnimal"
                 @click="handleApply"
@@ -217,11 +222,111 @@
               </select>
             </div>
 
+            <!-- 聯絡電話 -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">
+                聯絡電話 <span class="text-red-500">*</span>
+              </label>
+              <input
+                v-model="applicationForm.contact_phone"
+                type="tel"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="例: 0912345678"
+                required
+              />
+            </div>
+
+            <!-- 聯絡地址 -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">
+                聯絡地址 <span class="text-red-500">*</span>
+              </label>
+              <input
+                v-model="applicationForm.contact_address"
+                type="text"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="例: 台北市信義區信義路五段7號"
+                required
+              />
+            </div>
+
+            <!-- 職業 -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">
+                職業
+              </label>
+              <input
+                v-model="applicationForm.occupation"
+                type="text"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="例: 工程師"
+              />
+            </div>
+
+            <!-- 居住環境 -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">
+                居住環境 <span class="text-red-500">*</span>
+              </label>
+              <select
+                v-model="applicationForm.housing_type"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              >
+                <option value="">請選擇</option>
+                <option value="公寓">公寓</option>
+                <option value="透天厝">透天厝</option>
+                <option value="獨棟">獨棟</option>
+                <option value="宿舍">宿舍</option>
+                <option value="其他">其他</option>
+              </select>
+            </div>
+
+            <!-- 養寵經驗 -->
+            <div class="flex items-center">
+              <input
+                id="has-experience"
+                v-model="applicationForm.has_experience"
+                type="checkbox"
+                class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              <label for="has-experience" class="ml-2 text-sm text-gray-700">
+                我有養寵物的經驗
+              </label>
+            </div>
+
+            <!-- 領養原因 -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">
+                領養原因 <span class="text-red-500">*</span>
+              </label>
+              <textarea
+                v-model="applicationForm.reason"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                rows="3"
+                placeholder="請說明您想領養的原因..."
+                required
+              ></textarea>
+            </div>
+
+            <!-- 其他備註 -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">
+                其他備註
+              </label>
+              <textarea
+                v-model="applicationForm.notes"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                rows="2"
+                placeholder="其他想說明的事項..."
+              ></textarea>
+            </div>
+
             <!-- 聯絡資訊說明 -->
             <div class="text-sm text-gray-600 bg-blue-50 border border-blue-200 rounded-md p-3">
               <p class="font-medium text-blue-900 mb-1">📝 申請說明</p>
               <ul class="list-disc list-inside space-y-1">
-                <li>提交後將使用您的註冊資料進行審核</li>
+                <li>請確實填寫以上資料,以利審核</li>
                 <li>審核期間可能需要 1-3 個工作天</li>
                 <li>審核結果將透過系統通知您</li>
               </ul>
@@ -288,7 +393,14 @@ const isSubmitting = ref(false)
 const applicationError = ref('')
 const agreeTerms = ref(false)
 const applicationForm = ref({
-  type: 'ADOPTION' as 'ADOPTION' | 'REHOME'
+  type: 'ADOPTION' as 'ADOPTION' | 'REHOME',
+  contact_phone: '',
+  contact_address: '',
+  occupation: '',
+  housing_type: '',
+  has_experience: false,
+  reason: '',
+  notes: ''
 })
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
@@ -376,7 +488,10 @@ const formattedDate = computed(() => {
 // 是否可以編輯
 const canEdit = computed(() => {
   if (!animal.value || !authStore.user) return false
-  return animal.value.created_by === authStore.user.user_id || authStore.isAdmin
+  
+  // 只有動物的建立者(擁有者)可以編輯
+  // 管理員不能編輯用戶傳來的送養資料
+  return animal.value.created_by === authStore.user.user_id
 })
 
 // 是否為我的動物
@@ -421,7 +536,16 @@ function handleApply() {
   }
   
   // 重置表單
-  applicationForm.value.type = 'ADOPTION'
+  applicationForm.value = {
+    type: 'ADOPTION',
+    contact_phone: '',
+    contact_address: '',
+    occupation: '',
+    housing_type: '',
+    has_experience: false,
+    reason: '',
+    notes: ''
+  }
   agreeTerms.value = false
   applicationError.value = ''
   showApplicationModal.value = true
@@ -447,22 +571,40 @@ async function submitApplication() {
     await createApplication(
       {
         animal_id: animal.value.animal_id,
-        type: applicationForm.value.type
+        type: applicationForm.value.type,
+        contact_phone: applicationForm.value.contact_phone,
+        contact_address: applicationForm.value.contact_address,
+        occupation: applicationForm.value.occupation,
+        housing_type: applicationForm.value.housing_type,
+        has_experience: applicationForm.value.has_experience,
+        reason: applicationForm.value.reason,
+        notes: applicationForm.value.notes
       },
       idempotencyKey
     )
     
     // 成功後關閉對話框並導向我的申請
     showApplicationModal.value = false
+    alert('申請已提交!送養人將會審核您的申請。')
     router.push('/my/applications')
   } catch (err: any) {
     console.error('Submit application error:', err)
     if (err.response?.status === 400) {
-      applicationError.value = err.response.data.message || '申請失敗,請檢查您的資料'
-    } else if (err.response?.status === 409) {
-      applicationError.value = '您已經申請過此動物了'
+      applicationError.value = err.response.data.message || err.response.data.error || '申請失敗,請檢查您的資料'
+    } else if (err.response?.status === 409 || err.response?.status === 500) {
+      // 409 或 500 都可能是重複申請
+      const errorMsg = err.response.data.message || err.response.data.error || ''
+      if (errorMsg.includes('已對此動物提交申請') || errorMsg.includes('已提交') || errorMsg.includes('重複')) {
+        applicationError.value = '您已經對此動物提交過申請了,請前往「我的申請」頁面查看'
+        // 3秒後自動跳轉
+        setTimeout(() => {
+          router.push('/my/applications')
+        }, 3000)
+      } else {
+        applicationError.value = errorMsg || '申請失敗,請稍後再試'
+      }
     } else {
-      applicationError.value = '提交失敗,請稍後再試'
+      applicationError.value = err.response?.data?.message || err.response?.data?.error || '提交失敗,請稍後再試'
     }
   } finally {
     isSubmitting.value = false

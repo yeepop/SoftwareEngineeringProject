@@ -37,6 +37,16 @@ class Application(db.Model):
     version = db.Column(db.Integer, default=1, nullable=False)  # Optimistic locking
     idempotency_key = db.Column(db.String(255), unique=True, nullable=True, index=True)
     attachments = db.Column(db.JSON, nullable=True)
+    
+    # 申請人詳細資料 (新增欄位)
+    contact_phone = db.Column(db.String(32), nullable=True)
+    contact_address = db.Column(db.String(500), nullable=True)
+    occupation = db.Column(db.String(100), nullable=True)
+    housing_type = db.Column(db.String(50), nullable=True)  # 例: 公寓、透天厝、獨棟
+    has_experience = db.Column(db.Boolean, default=False, nullable=True)
+    reason = db.Column(db.Text, nullable=True)  # 領養原因
+    notes = db.Column(db.Text, nullable=True)  # 其他備註
+    
     created_at = db.Column(db.DateTime(6), default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime(6), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     deleted_at = db.Column(db.DateTime(6), nullable=True)
@@ -63,13 +73,21 @@ class Application(db.Model):
             'assignee_id': self.assignee_id,
             'version': self.version,
             'attachments': self.attachments,
+            # 申請人詳細資料
+            'contact_phone': self.contact_phone,
+            'contact_address': self.contact_address,
+            'occupation': self.occupation,
+            'housing_type': self.housing_type,
+            'has_experience': self.has_experience,
+            'reason': self.reason,
+            'notes': self.notes,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
         
         if include_relations:
             data['applicant'] = self.applicant.to_dict() if self.applicant else None
-            data['animal'] = self.animal.to_dict() if self.animal else None
+            data['animal'] = self.animal.to_dict(include_relations=True) if self.animal else None
             data['assignee'] = self.assignee.to_dict() if self.assignee else None
         
         return data

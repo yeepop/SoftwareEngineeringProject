@@ -120,6 +120,10 @@ proj_new/
 ### 使用 Docker Compose 啟動（推薦）
 
 ```bash
+
+# 移除所有服務(刪除所有SQL和minio圖片資料，重啟)(可選)
+docker-compose down -v
+
 # 複製環境變數檔案
 cp .env.example .env
 cp backend/.env.example backend/.env

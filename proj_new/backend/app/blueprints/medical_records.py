@@ -18,7 +18,7 @@ medical_records_bp = Blueprint('medical_records', __name__, description='醫療�
 def create_medical_record(animal_id):
     """
     為動物創建醫療紀錄
-    需要認證 (收容所成員或管理員)
+    需要認證 (動物擁有者、收容所成員或管理員)
     """
     current_user_id = int(get_jwt_identity())
     
@@ -27,18 +27,24 @@ def create_medical_record(animal_id):
     if not animal:
         abort(404, message='動物不存在')
     
-    # 檢查權限 (管理員或該動物所屬收容所的成員)
+    # 檢查權限
     user = User.query.get(current_user_id)
     if not user:
         abort(404, message='用戶不存在')
     
-    if user.role not in [UserRole.ADMIN, UserRole.SHELTER_MEMBER]:
-        abort(403, message='無權限創建醫療紀錄')
+    # 權限檢查邏輯:
+    # 1. 管理員可以為任何動物創建醫療紀錄
+    # 2. 動物擁有者(owner_id)可以為自己的動物創建醫療紀錄
+    has_permission = False
     
-    # 如果是收容所成員,檢查是否為該動物所屬收容所
-    if user.role == UserRole.SHELTER_MEMBER:
-        if not animal.shelter_id or animal.shelter_id != user.primary_shelter_id:
-            abort(403, message='僅能為所屬收容所的動物創建醫療紀錄')
+    if user.role == UserRole.ADMIN:
+        has_permission = True
+    elif animal.owner_id == current_user_id:
+        # 動物擁有者可以為自己的動物創建醫療紀錄
+        has_permission = True
+    
+    if not has_permission:
+        abort(403, message='無權限為此動物創建醫療紀錄')
     
     data = request.get_json()
     
@@ -106,7 +112,7 @@ def list_medical_records(animal_id):
 def update_medical_record(record_id):
     """
     更新醫療紀錄
-    僅創建者或管理員可更新
+    僅創建者、動物擁有者或管理員可更新
     """
     current_user_id = int(get_jwt_identity())
     
@@ -123,8 +129,18 @@ def update_medical_record(record_id):
     if not user:
         abort(404, message='用戶不存在')
     
-    if user.role != UserRole.ADMIN and record.created_by != current_user_id:
-        abort(403, message='僅創建者或管理員可更新醫療紀錄')
+    # 獲取動物資料以檢查擁有者
+    animal = Animal.query.get(record.animal_id)
+    
+    # 權限檢查: 管理員、醫療紀錄創建者、或動物擁有者可更新
+    has_permission = (
+        user.role == UserRole.ADMIN or 
+        record.created_by == current_user_id or
+        (animal and animal.owner_id == current_user_id)
+    )
+    
+    if not has_permission:
+        abort(403, message='僅創建者、動物擁有者或管理員可更新醫療紀錄')
     
     data = request.get_json()
     

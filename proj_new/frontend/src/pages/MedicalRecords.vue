@@ -24,7 +24,7 @@
         </select>
       </div>
 
-      <!-- 新增記錄按鈕 (僅 SHELTER_MEMBER/ADMIN) -->
+      <!-- 新增記錄按鈕 (擁有者或管理員) -->
       <div v-if="selectedAnimalId && canManageRecords" class="action-bar">
         <button @click="openAddModal" class="btn-primary">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -207,6 +207,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { getAnimals, type Animal as ApiAnimal } from '@/api/animals'
 import { 
@@ -218,8 +219,9 @@ import {
 } from '@/api/medicalRecords'
 import type { MedicalRecord } from '@/types/models'
 
-// Store
+// Store & Router
 const authStore = useAuthStore()
+const route = useRoute()
 
 // State
 const animals = ref<ApiAnimal[]>([])
@@ -240,7 +242,20 @@ const formData = ref<CreateMedicalRecordData>({
 
 // Computed
 const canManageRecords = computed(() => {
-  return authStore.user?.role === 'ADMIN' || authStore.user?.role === 'SHELTER_MEMBER'
+  // 管理員可以管理所有動物的醫療紀錄
+  if (authStore.user?.role === 'ADMIN') {
+    return true
+  }
+  
+  // 一般會員(包含收容所會員)可以管理自己擁有的動物的醫療紀錄
+  if (selectedAnimalId.value) {
+    const selectedAnimal = animals.value.find(a => a.animal_id === selectedAnimalId.value)
+    if (selectedAnimal && selectedAnimal.owner_id === authStore.user?.user_id) {
+      return true
+    }
+  }
+  
+  return false
 })
 
 const isAdmin = computed(() => {
@@ -283,7 +298,8 @@ async function loadMedicalRecords() {
 
 function canEditRecord(record: MedicalRecord): boolean {
   if (authStore.user?.role === 'ADMIN') return true
-  if (authStore.user?.role === 'SHELTER_MEMBER' && record.created_by === authStore.user?.user_id) return true
+  // 所有用戶(包括收容所會員)只能編輯自己創建的醫療記錄
+  if (record.created_by === authStore.user?.user_id) return true
   return false
 }
 
@@ -402,8 +418,18 @@ function formatDateTime(dateString?: string): string {
 }
 
 // Lifecycle
-onMounted(() => {
-  loadAnimals()
+onMounted(async () => {
+  await loadAnimals()
+  
+  // 檢查 URL 參數,如果有 animal_id,自動選擇該動物
+  const animalIdFromQuery = route.query.animal_id
+  if (animalIdFromQuery) {
+    const animalId = parseInt(animalIdFromQuery as string, 10)
+    if (!isNaN(animalId) && animals.value.some(a => a.animal_id === animalId)) {
+      selectedAnimalId.value = animalId
+      await loadMedicalRecords()
+    }
+  }
 })
 </script>
 

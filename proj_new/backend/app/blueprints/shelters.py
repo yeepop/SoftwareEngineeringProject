@@ -253,6 +253,10 @@ def verify_shelter(shelter_id):
 def batch_upload_animals(shelter_id):
     """
     批次匯入動物 (使用 Job Pattern)
+    接收多個檔案:
+    - animal_csv: 動物基本資訊 CSV (必填)
+    - medical_csv: 醫療記錄 CSV (選填)
+    - photos[]: 動物照片 (選填,檔名格式: {animal_code}_{order}.jpg)
     返回 202 Accepted + jobId
     """
     current_user_id = int(get_jwt_identity())
@@ -265,11 +269,97 @@ def batch_upload_animals(shelter_id):
     if not check_shelter_member_or_admin(current_user_id, shelter_id):
         abort(403, message='無權限執行批次匯入')
     
-    data = request.get_json()
+    # === 處理動物基本資訊 CSV (必填) ===
+    if 'animal_csv' not in request.files:
+        abort(400, message='缺少必填欄位: animal_csv')
     
-    # 驗證必填欄位
-    if 'file_url' not in data:
-        abort(400, message='缺少必填欄位: file_url')
+    animal_csv = request.files['animal_csv']
+    
+    if animal_csv.filename == '':
+        abort(400, message='未選擇動物基本資訊 CSV 檔案')
+    
+    # 驗證檔案類型
+    if not animal_csv.filename.lower().endswith('.csv'):
+        abort(400, message='動物基本資訊檔案必須為 CSV 格式')
+    
+    # 驗證檔案大小 (最大 10MB)
+    animal_csv.seek(0, 2)
+    file_size = animal_csv.tell()
+    animal_csv.seek(0)
+    
+    if file_size > 10 * 1024 * 1024:
+        abort(400, message='動物基本資訊 CSV 檔案不能超過 10MB')
+    
+    # 讀取動物 CSV 內容
+    try:
+        animal_csv_content = animal_csv.read().decode('utf-8')
+    except UnicodeDecodeError:
+        abort(400, message='動物基本資訊 CSV 編碼錯誤,請使用 UTF-8 編碼')
+    
+    # 驗證 CSV 格式
+    import csv
+    import io
+    try:
+        csv_reader = csv.DictReader(io.StringIO(animal_csv_content))
+        first_row = next(csv_reader, None)
+        if not first_row:
+            abort(400, message='動物基本資訊 CSV 檔案為空')
+    except Exception as e:
+        abort(400, message=f'動物基本資訊 CSV 格式錯誤: {str(e)}')
+    
+    # === 處理醫療記錄 CSV (選填) ===
+    medical_csv_content = None
+    if 'medical_csv' in request.files:
+        medical_csv = request.files['medical_csv']
+        
+        if medical_csv.filename and medical_csv.filename != '':
+            # 驗證檔案類型
+            if not medical_csv.filename.lower().endswith('.csv'):
+                abort(400, message='醫療記錄檔案必須為 CSV 格式')
+            
+            # 驗證檔案大小
+            medical_csv.seek(0, 2)
+            file_size = medical_csv.tell()
+            medical_csv.seek(0)
+            
+            if file_size > 10 * 1024 * 1024:
+                abort(400, message='醫療記錄 CSV 檔案不能超過 10MB')
+            
+            # 讀取內容
+            try:
+                medical_csv_content = medical_csv.read().decode('utf-8')
+            except UnicodeDecodeError:
+                abort(400, message='醫療記錄 CSV 編碼錯誤,請使用 UTF-8 編碼')
+    
+    # === 處理照片 (選填) ===
+    photos_data = []
+    if 'photos' in request.files:
+        photos = request.files.getlist('photos')
+        
+        for photo in photos:
+            if photo.filename and photo.filename != '':
+                # 驗證檔案類型
+                if not photo.content_type or not photo.content_type.startswith('image/'):
+                    abort(400, message=f'檔案 {photo.filename} 不是圖片格式')
+                
+                # 驗證檔案大小 (最大 5MB per photo)
+                photo.seek(0, 2)
+                photo_size = photo.tell()
+                photo.seek(0)
+                
+                if photo_size > 5 * 1024 * 1024:
+                    abort(400, message=f'照片 {photo.filename} 超過 5MB 限制')
+                
+                # 讀取照片二進制數據並轉為 base64 (暫存於 payload)
+                import base64
+                photo_binary = photo.read()
+                photo_base64 = base64.b64encode(photo_binary).decode('utf-8')
+                
+                photos_data.append({
+                    'filename': photo.filename,
+                    'content_type': photo.content_type,
+                    'data': photo_base64  # 未來改用 MinIO
+                })
     
     # 創建 Job 記錄
     job = Job(
@@ -278,8 +368,12 @@ def batch_upload_animals(shelter_id):
         created_by=current_user_id,
         payload={
             'shelter_id': shelter_id,
-            'file_url': data['file_url'],
-            'options': data.get('options', {})
+            'animal_csv_content': animal_csv_content,
+            'medical_csv_content': medical_csv_content,
+            'photos': photos_data,
+            'animal_csv_filename': animal_csv.filename,
+            'medical_csv_filename': request.files['medical_csv'].filename if 'medical_csv' in request.files and request.files['medical_csv'].filename else None,
+            'options': {}
         }
     )
     
@@ -293,5 +387,10 @@ def batch_upload_animals(shelter_id):
     return jsonify({
         'message': '批次匯入已加入隊列',
         'job_id': job.job_id,
-        'status': job.status.value
+        'status': job.status.value,
+        'files_received': {
+            'animal_csv': animal_csv.filename,
+            'medical_csv': request.files['medical_csv'].filename if 'medical_csv' in request.files and request.files['medical_csv'].filename else None,
+            'photos_count': len(photos_data)
+        }
     }), 202

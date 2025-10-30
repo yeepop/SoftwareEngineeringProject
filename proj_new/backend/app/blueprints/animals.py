@@ -134,6 +134,7 @@ def create_animal():
         name=data.get('name'),
         species=Species(data['species']) if data.get('species') else None,
         breed=data.get('breed'),
+        color=data.get('color'),
         sex=Sex(data['sex']) if data.get('sex') else None,
         dob=datetime.fromisoformat(data['dob']) if data.get('dob') else None,
         description=data.get('description'),
@@ -149,7 +150,7 @@ def create_animal():
     
     return jsonify({
         'message': '動物資料建立成功',
-        'animal': animal.to_dict()
+        'animal': animal.to_dict(include_relations=True)
     }), 201
 
 
@@ -159,6 +160,7 @@ def update_animal(animal_id):
     """
     更新動物資料 (需為擁有者或管理員)
     ---
+    問題6: 管理員不應該編輯已上架(PUBLISHED)的動物
     """
     current_user_id = int(get_jwt_identity())
     user = User.query.get(current_user_id)
@@ -168,9 +170,13 @@ def update_animal(animal_id):
     if not animal:
         abort(404, message='動物不存在')
     
-    # 檢查權限
-    if animal.owner_id != current_user_id and not user.is_admin:
-        abort(403, message='沒有權限修改此動物資料')
+    # 權限檢查 (問題6)
+    from app.models.user import UserRole
+    
+    # 只有擁有者可以編輯自己的動物
+    # 管理員不能編輯用戶傳來的送養資料
+    if animal.owner_id != current_user_id:
+        abort(403, message='只有動物擁有者可以修改此動物資料')
     
     data = request.get_json()
     
@@ -181,6 +187,8 @@ def update_animal(animal_id):
         animal.species = Species(data['species'])
     if 'breed' in data:
         animal.breed = data['breed']
+    if 'color' in data:
+        animal.color = data['color']
     if 'sex' in data:
         animal.sex = Sex(data['sex'])
     if 'dob' in data:
@@ -196,7 +204,7 @@ def update_animal(animal_id):
     
     return jsonify({
         'message': '動物資料更新成功',
-        'animal': animal.to_dict()
+        'animal': animal.to_dict(include_relations=True)
     }), 200
 
 
@@ -401,7 +409,7 @@ def submit_animal(animal_id):
         
         return jsonify({
             'message': '動物已提交審核,管理員將儘快處理',
-            'animal': animal.to_dict()
+            'animal': animal.to_dict(include_relations=True)
         }), 200
         
     except Exception as e:
@@ -438,7 +446,7 @@ def publish_animal(animal_id):
         
         return jsonify({
             'message': '動物已發布',
-            'animal': animal.to_dict()
+            'animal': animal.to_dict(include_relations=True)
         }), 200
         
     except Exception as e:
@@ -475,7 +483,60 @@ def retire_animal(animal_id):
         
         return jsonify({
             'message': '動物已下架',
-            'animal': animal.to_dict()
+            'animal': animal.to_dict(include_relations=True)
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+@animals_bp.route('/<int:animal_id>/reject', methods=['POST'])
+@jwt_required()
+def reject_animal(animal_id):
+    """
+    拒絕批准動物上架 (狀態: SUBMITTED -> DRAFT)
+    ---
+    需要管理員權限
+    記錄拒絕原因、拒絕時間、拒絕者 (問題4、問題5)
+    """
+    try:
+        current_user_id = int(get_jwt_identity())
+        current_user = User.query.get(current_user_id)
+        
+        # 權限檢查:只有管理員可以拒絕
+        from app.models.user import UserRole
+        if current_user.role != UserRole.ADMIN:
+            abort(403, message='只有管理員可以拒絕批准')
+        
+        animal = Animal.query.filter_by(animal_id=animal_id, deleted_at=None).first()
+        if not animal:
+            abort(404, message='動物不存在')
+        
+        # 狀態檢查:只能拒絕待審核的動物
+        if animal.status != AnimalStatus.SUBMITTED:
+            abort(400, message=f'只能拒絕待審核狀態的動物,目前狀態: {animal.status.value}')
+        
+        # 取得拒絕原因
+        data = request.get_json() or {}
+        rejection_reason = data.get('rejection_reason', '').strip()
+        
+        if not rejection_reason:
+            abort(400, message='請提供拒絕原因')
+        
+        # 更新狀態為草稿,記錄拒絕資訊
+        animal.status = AnimalStatus.DRAFT
+        animal.rejection_reason = rejection_reason
+        animal.rejected_at = datetime.utcnow()
+        animal.rejected_by = current_user_id
+        
+        db.session.commit()
+        
+        # TODO: 發送通知給動物擁有者
+        
+        return jsonify({
+            'message': '已拒絕批准,動物狀態改為草稿',
+            'animal': animal.to_dict(include_relations=True)
         }), 200
         
     except Exception as e:

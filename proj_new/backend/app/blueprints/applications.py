@@ -36,9 +36,28 @@ def list_applications():
         # 基礎查詢
         query = Application.query.filter_by(deleted_at=None)
         
-        # 權限過濾: 一般用戶只能看自己的申請
-        if current_user.role == UserRole.GENERAL_MEMBER:
-            query = query.filter_by(applicant_id=current_user_id)
+        # 權限過濾邏輯:
+        # - 管理員: 可以看到所有申請
+        # - 送養人: 只能看到針對自己動物的申請
+        # - 申請人: 只能看到自己提交的申請
+        if current_user.role == UserRole.ADMIN:
+            # 管理員可以看到所有申請,不需要額外過濾
+            pass
+        else:
+            # 非管理員: 查詢自己擁有的動物ID列表
+            owned_animal_ids = db.session.query(Animal.animal_id).filter_by(
+                owner_id=current_user_id,
+                deleted_at=None
+            ).all()
+            owned_animal_ids = [aid[0] for aid in owned_animal_ids]
+            
+            # 只能看到: 自己提交的申請 OR 針對自己動物的申請
+            query = query.filter(
+                or_(
+                    Application.applicant_id == current_user_id,
+                    Application.animal_id.in_(owned_animal_ids)
+                )
+            )
         
         # 過濾條件
         if 'status' in request.args:
@@ -50,8 +69,19 @@ def list_applications():
                 abort(400, message=f'無效的狀態值: {status_str}')
         if 'animal_id' in request.args:
             query = query.filter_by(animal_id=request.args.get('animal_id', type=int))
-        if 'applicant_id' in request.args and current_user.role != UserRole.GENERAL_MEMBER:
-            query = query.filter_by(applicant_id=request.args.get('applicant_id', type=int))
+        
+        # applicant_id 過濾邏輯優化
+        if 'applicant_id' in request.args:
+            requested_applicant_id = request.args.get('applicant_id', type=int)
+            
+            # 非管理員只能查詢自己的申請
+            if current_user.role != UserRole.ADMIN:
+                if requested_applicant_id != current_user_id:
+                    abort(403, message='無權限查看其他用戶的申請')
+                query = query.filter_by(applicant_id=current_user_id)
+            else:
+                # 只有管理員可以查詢指定用戶的申請
+                query = query.filter_by(applicant_id=requested_applicant_id)
         
         # 執行分頁查詢
         pagination = query.order_by(Application.created_at.desc()).paginate(
@@ -106,13 +136,24 @@ def create_application():
         if animal.owner_id == current_user_id or animal.created_by == current_user_id:
             abort(400, message='您不能申請自己刊登的動物')
         
-        # 檢查是否已有進行中的申請
+        # 檢查是否已有進行中的申請(任何用戶)
+        any_pending = Application.query.filter_by(
+            animal_id=data['animal_id'],
+            deleted_at=None
+        ).filter(
+            Application.status.in_([ApplicationStatus.PENDING, ApplicationStatus.UNDER_REVIEW])
+        ).first()
+        
+        if any_pending:
+            abort(409, message='此動物目前有待審核的申請,請等待審核結果後再提出申請')
+        
+        # 檢查當前用戶是否已對此動物提交過申請
         existing = Application.query.filter_by(
             animal_id=data['animal_id'],
             applicant_id=current_user_id,
             deleted_at=None
         ).filter(
-            Application.status.in_([ApplicationStatus.PENDING, ApplicationStatus.UNDER_REVIEW])
+            Application.status.in_([ApplicationStatus.PENDING, ApplicationStatus.UNDER_REVIEW, ApplicationStatus.APPROVED])
         ).first()
         
         if existing:
@@ -136,7 +177,15 @@ def create_application():
             status=ApplicationStatus.PENDING,
             submitted_at=datetime.utcnow(),
             attachments=data.get('attachments'),
-            idempotency_key=idempotency_key
+            idempotency_key=idempotency_key,
+            # 申請人詳細資料
+            contact_phone=data.get('contact_phone'),
+            contact_address=data.get('contact_address'),
+            occupation=data.get('occupation'),
+            housing_type=data.get('housing_type'),
+            has_experience=data.get('has_experience', False),
+            reason=data.get('reason'),
+            notes=data.get('notes')
         )
         
         db.session.add(application)
@@ -156,6 +205,8 @@ def create_application():
         except Exception as notify_error:
             # 通知失敗不影響主流程
             print(f'通知發送失敗: {notify_error}')
+            import traceback
+            traceback.print_exc()
         
         return jsonify({
             'message': '申請已提交',
@@ -164,6 +215,15 @@ def create_application():
         
     except Exception as e:
         db.session.rollback()
+        print(f'Create application error: {str(e)}')
+        import traceback
+        traceback.print_exc()
+        
+        # 如果是 werkzeug HTTP 異常,返回正確的狀態碼
+        from werkzeug.exceptions import HTTPException
+        if isinstance(e, HTTPException):
+            return jsonify({'error': e.description}), e.code
+        
         return jsonify({'error': str(e)}), 500
 
 
@@ -186,8 +246,15 @@ def get_application(application_id):
         if not application:
             abort(404, message='申請不存在')
         
-        # 權限檢查: 申請人本人或管理員/收容所人員
-        if current_user.role == UserRole.GENERAL_MEMBER and application.applicant_id != current_user_id:
+        # 權限檢查: 申請人本人、動物擁有者、或管理員
+        from app.models.animal import Animal
+        animal = Animal.query.get(application.animal_id)
+        
+        is_applicant = application.applicant_id == current_user_id
+        is_owner = animal and animal.owner_id == current_user_id
+        is_admin = current_user.role == UserRole.ADMIN
+        
+        if not (is_applicant or is_owner or is_admin):
             abort(403, message='無權限查看此申請')
         
         return jsonify(application.to_dict(include_relations=True)), 200
@@ -202,16 +269,15 @@ def review_application(application_id):
     """
     審核申請 (核准/拒絕)
     ---
-    需要管理員或收容所人員權限
+    送養人審核權限
     支援樂觀鎖: 透過 version 欄位
     """
     try:
         current_user_id = int(get_jwt_identity())
         current_user = User.query.get(current_user_id)
         
-        # 權限檢查
-        if current_user.role not in [UserRole.ADMIN, UserRole.SHELTER_MEMBER]:
-            abort(403, message='無權限審核申請')
+        if not current_user:
+            abort(404, message='用戶不存在')
         
         application = Application.query.filter_by(
             application_id=application_id,
@@ -220,6 +286,19 @@ def review_application(application_id):
         
         if not application:
             abort(404, message='申請不存在')
+        
+        # 權限檢查: 只有送養人(擁有者)可以審核申請
+        from app.models.animal import Animal
+        animal = Animal.query.get(application.animal_id)
+        if not animal:
+            abort(404, message='動物不存在')
+        
+        # 只有送養人可以審核,管理員也不行
+        if animal.owner_id != current_user_id:
+            if current_user.role == UserRole.ADMIN:
+                abort(403, message='領養申請應由送養人審核,管理員無權審核')
+            else:
+                abort(403, message='只有送養人可以審核此申請')
         
         data = request.get_json()
         action = data.get('action')  # 'approve' or 'reject'
@@ -244,7 +323,6 @@ def review_application(application_id):
             application.status = ApplicationStatus.APPROVED
             
             # 批准申請時，將動物狀態改為已領養
-            animal = Animal.query.get(application.animal_id)
             if animal:
                 from app.models.animal import AnimalStatus
                 animal.status = AnimalStatus.ADOPTED
@@ -259,13 +337,19 @@ def review_application(application_id):
         
         db.session.commit()
         
-        # 記錄審計日誌
-        audit_service.log_application_review(
-            application_id,
-            current_user_id,
-            old_status.value,
-            application.status.value
-        )
+        # 記錄審計日誌 (包裝在 try-catch 中)
+        try:
+            audit_service.log_application_review(
+                application_id,
+                current_user_id,
+                old_status.value,
+                application.status.value
+            )
+        except Exception as audit_error:
+            # 審計日誌失敗不影響主流程,但要記錄錯誤
+            print(f'審計日誌記錄失敗: {audit_error}')
+            import traceback
+            traceback.print_exc()
         
         # 發送審核結果通知給申請人
         try:
@@ -278,6 +362,8 @@ def review_application(application_id):
         except Exception as notify_error:
             # 通知失敗不影響主流程
             print(f'通知發送失敗: {notify_error}')
+            import traceback
+            traceback.print_exc()
         
         return jsonify({
             'message': f'申請已{("核准" if action == "approve" else "拒絕")}',
@@ -285,6 +371,9 @@ def review_application(application_id):
         }), 200
         
     except Exception as e:
+        print(f"審核申請時發生錯誤: {e}")
+        import traceback
+        traceback.print_exc()
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
@@ -295,13 +384,14 @@ def assign_application(application_id):
     """
     指派申請給處理人員
     ---
-    需要管理員或收容所人員權限
+    需要管理員權限 (此功能已棄用,保留僅供管理員緊急情況使用)
     """
     try:
         current_user_id = int(get_jwt_identity())
         current_user = User.query.get(current_user_id)
         
-        if current_user.role not in [UserRole.ADMIN, UserRole.SHELTER_MEMBER]:
+        # 只有管理員可以使用此功能
+        if current_user.role != UserRole.ADMIN:
             abort(403, message='無權限指派申請')
         
         application = Application.query.filter_by(
@@ -317,7 +407,7 @@ def assign_application(application_id):
         
         # 驗證受理人
         assignee = User.query.get(assignee_id)
-        if not assignee or assignee.role not in [UserRole.ADMIN, UserRole.SHELTER_MEMBER]:
+        if not assignee:
             abort(400, message='無效的受理人')
         
         application.assignee_id = assignee_id

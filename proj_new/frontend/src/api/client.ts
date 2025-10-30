@@ -21,6 +21,11 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${authStore.accessToken}`
     }
     
+    // 如果是 FormData,刪除 Content-Type 讓瀏覽器自動設置
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type']
+    }
+    
     return config
   },
   (error) => {

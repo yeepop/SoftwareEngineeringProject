@@ -11,6 +11,9 @@ class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
     SECURITY_PASSWORD_SALT = os.environ.get('SECURITY_PASSWORD_SALT', 'dev-password-salt-change-in-production')
     
+    # Timezone
+    TIMEZONE = 'Asia/Taipei'
+    
     # Database
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', 'mysql+pymysql://root:password@localhost:3307/pet_adoption')
     SQLALCHEMY_TRACK_MODIFICATIONS = False

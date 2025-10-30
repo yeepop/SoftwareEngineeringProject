@@ -25,6 +25,13 @@
         </span>
       </div>
 
+      <!-- 申請審核中標籤 -->
+      <div v-if="animal.has_pending_application && animal.status === 'PUBLISHED'" class="absolute bottom-2 right-2">
+        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-orange-500 text-white">
+          📝 領養申請審核中
+        </span>
+      </div>
+
       <!-- 我的寵物標籤 -->
       <div v-if="isMyAnimal" class="absolute top-2 left-2">
         <span class="px-2 py-1 text-xs font-semibold rounded-full bg-purple-500 text-white">
@@ -50,15 +57,23 @@
       <!-- 基本資訊 -->
       <div class="space-y-1 text-sm text-gray-600 mb-3">
         <div class="flex items-center">
-          <span class="mr-2">🏷️</span>
-          <span>{{ speciesText }} {{ animal.breed ? `· ${animal.breed}` : '' }}</span>
+          <span class="mr-2">物種：</span>
+          <span>{{ speciesText }} </span>
+        </div>
+        <div class="flex items-center">
+          <span class="mr-2">品種：</span>
+          <span>{{ animal.breed }}</span>
         </div>
         <div class="flex items-center" v-if="animal.sex">
-          <span class="mr-2">⚥</span>
+          <span class="mr-2">性別：</span>
           <span>{{ sexText }}</span>
         </div>
+        <div class="flex items-center" v-if="animal.color">
+          <span class="mr-2">顏色：</span>
+          <span>{{ animal.color }}</span>
+        </div>
         <div class="flex items-center" v-if="age">
-          <span class="mr-2">🎂</span>
+          <span class="mr-2">年齡：</span>
           <span>{{ age }}</span>
         </div>
       </div>
@@ -95,6 +110,7 @@ interface Animal {
   name?: string
   species?: 'CAT' | 'DOG'
   breed?: string
+  color?: string
   sex?: 'MALE' | 'FEMALE' | 'UNKNOWN'
   dob?: string
   description?: string
@@ -105,6 +121,7 @@ interface Animal {
   featured?: boolean
   images?: Array<{ url: string; order: number }>
   created_at: string
+  has_pending_application?: boolean
 }
 
 const props = defineProps<{

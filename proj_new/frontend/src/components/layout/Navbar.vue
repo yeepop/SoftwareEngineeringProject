@@ -108,6 +108,14 @@
                 </router-link>
 
                 <router-link
+                  to="/admin/applications"
+                  class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  @click="showUserMenu = false"
+                >
+                  📋 領養申請管理
+                </router-link>
+
+                <router-link
                   v-if="authStore.user?.role === 'SHELTER_MEMBER'"
                   to="/shelter/dashboard"
                   class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
@@ -230,6 +238,13 @@
             @click="showMobileMenu = false"
           >
             我的申請
+          </router-link>
+          <router-link
+            to="/admin/applications"
+            class="block px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100"
+            @click="showMobileMenu = false"
+          >
+            領養申請管理
           </router-link>
           <router-link
             v-if="authStore.user?.role === 'SHELTER_MEMBER'"

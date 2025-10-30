@@ -3,8 +3,9 @@
     <div class="container">
       <!-- 頁面標題 -->
       <div class="page-header">
-        <h1 class="page-title">申請審核管理</h1>
-        <p class="page-description">審核與處理領養申請</p>
+        <h1 class="page-title">領養申請管理</h1>
+        <p class="page-description" v-if="authStore.isAdmin">查看與管理所有領養申請</p>
+        <p class="page-description" v-else>查看與審核您動物的領養申請</p>
         <div v-if="route.query.animal_id" class="filter-notice">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -124,14 +125,118 @@
               </svg>
             </div>
             <div class="animal-details">
-              <h3 class="animal-name">{{ application.animal?.name }}</h3>
-              <div class="animal-meta">
-                <span>{{ application.animal?.species }}</span>
-                <span>•</span>
-                <span>{{ application.animal?.breed }}</span>
-                <span>•</span>
-                <span>{{ application.animal?.age }} 歲</span>
+              <h3 class="animal-name">{{ application.animal?.name || '未命名' }}</h3>
+              
+              <!-- 動物標籤 -->
+              <div class="animal-badges">
+                <span class="badge badge-species">
+                  {{ getSpeciesText(application.animal?.species) }}
+                </span>
+                <span v-if="application.animal?.breed" class="badge badge-breed">
+                  {{ application.animal.breed }}
+                </span>
+                <span v-if="application.animal?.sex" class="badge badge-sex">
+                  {{ getSexText(application.animal?.sex) }}
+                </span>
+                <span v-if="application.animal?.color" class="badge badge-color">
+                  {{ application.animal.color }}
+                </span>
+                <span v-if="application.animal?.age !== null && application.animal?.age !== undefined" class="badge badge-age">
+                  {{ application.animal.age }} 歲
+                </span>
               </div>
+              
+              <!-- 動物詳細資訊 -->
+              <div class="animal-extra-info">
+                <div v-if="application.animal?.dob" class="info-item">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <span>出生: {{ formatDateOnly(application.animal.dob) }}</span>
+                </div>
+                <div class="info-item">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                  </svg>
+                  <span>ID: {{ application.animal_id }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 申請人資訊 -->
+          <div class="applicant-details">
+            <h4 class="details-title">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              申請人資訊
+            </h4>
+            <div class="details-grid">
+              <div v-if="application.contact_phone" class="detail-item">
+                <span class="detail-label">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                  </svg>
+                  聯絡電話
+                </span>
+                <span class="detail-value">{{ application.contact_phone }}</span>
+              </div>
+              <div v-if="application.occupation" class="detail-item">
+                <span class="detail-label">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  職業
+                </span>
+                <span class="detail-value">{{ application.occupation }}</span>
+              </div>
+              <div v-if="application.housing_type" class="detail-item">
+                <span class="detail-label">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                  </svg>
+                  居住環境
+                </span>
+                <span class="detail-value">{{ application.housing_type }}</span>
+              </div>
+              <div v-if="application.has_experience !== undefined" class="detail-item">
+                <span class="detail-label">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  飼養經驗
+                </span>
+                <span class="detail-value">{{ application.has_experience ? '✓ 有經驗' : '✗ 無經驗' }}</span>
+              </div>
+            </div>
+            <div v-if="application.contact_address" class="detail-item full-width">
+              <span class="detail-label">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                聯絡地址
+              </span>
+              <span class="detail-value">{{ application.contact_address }}</span>
+            </div>
+            <div v-if="application.reason" class="detail-item full-width">
+              <span class="detail-label">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                領養原因
+              </span>
+              <p class="detail-text">{{ application.reason }}</p>
+            </div>
+            <div v-if="application.notes" class="detail-item full-width">
+              <span class="detail-label">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                其他備註
+              </span>
+              <p class="detail-text">{{ application.notes }}</p>
             </div>
           </div>
 
@@ -151,13 +256,6 @@
           <div class="card-actions">
             <button class="btn-view" @click="viewAnimalDetail(application.animal_id)">
               查看動物
-            </button>
-            <button
-              v-if="canAssign(application)"
-              class="btn-assign"
-              @click="openAssignModal(application)"
-            >
-              分配審核者
             </button>
             <button
               v-if="canReview(application)"
@@ -225,8 +323,62 @@
 
           <div class="modal-body">
             <div v-if="selectedApplication" class="review-summary">
-              <p><strong>申請人:</strong> {{ selectedApplication.applicant?.username }}</p>
-              <p><strong>動物:</strong> {{ selectedApplication.animal?.name }}</p>
+              <!-- 提示區塊 -->
+              <div class="info-notice">
+                <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span class="text-sm text-blue-800">送養人資訊: 您就是送養人,這是別人對您動物的領養申請</span>
+              </div>
+
+              <div class="summary-section">
+                <h3 class="summary-title">申請人資訊</h3>
+                <div class="summary-item">
+                  <strong>姓名/帳號:</strong> {{ selectedApplication.applicant?.username || selectedApplication.applicant?.email }}
+                </div>
+                <div v-if="selectedApplication.contact_phone" class="summary-item">
+                  <strong>聯絡電話:</strong> {{ selectedApplication.contact_phone }}
+                </div>
+                <div v-if="selectedApplication.contact_address" class="summary-item">
+                  <strong>聯絡地址:</strong> {{ selectedApplication.contact_address }}
+                </div>
+                <div v-if="selectedApplication.occupation" class="summary-item">
+                  <strong>職業:</strong> {{ selectedApplication.occupation }}
+                </div>
+                <div v-if="selectedApplication.housing_type" class="summary-item">
+                  <strong>居住環境:</strong> {{ selectedApplication.housing_type }}
+                </div>
+                <div v-if="selectedApplication.has_experience !== undefined" class="summary-item">
+                  <strong>飼養經驗:</strong> {{ selectedApplication.has_experience ? '有' : '無' }}
+                </div>
+                <div v-if="selectedApplication.reason" class="summary-item">
+                  <strong>領養原因:</strong> 
+                  <p class="summary-text">{{ selectedApplication.reason }}</p>
+                </div>
+                <div v-if="selectedApplication.notes" class="summary-item">
+                  <strong>其他備註:</strong>
+                  <p class="summary-text">{{ selectedApplication.notes }}</p>
+                </div>
+              </div>
+
+              <div class="summary-section">
+                <h3 class="summary-title">動物資訊</h3>
+                <div class="summary-item">
+                  <strong>名稱:</strong> {{ selectedApplication.animal?.name || '未命名' }}
+                </div>
+                <div class="summary-item">
+                  <strong>物種:</strong> {{ getSpeciesText(selectedApplication.animal?.species) }}
+                </div>
+                <div v-if="selectedApplication.animal?.breed" class="summary-item">
+                  <strong>品種:</strong> {{ selectedApplication.animal?.breed }}
+                </div>
+                <div v-if="selectedApplication.animal?.sex" class="summary-item">
+                  <strong>性別:</strong> {{ getSexText(selectedApplication.animal?.sex) }}
+                </div>
+                <div v-if="selectedApplication.animal?.age" class="summary-item">
+                  <strong>年齡:</strong> {{ selectedApplication.animal?.age }} 歲
+                </div>
+              </div>
             </div>
 
             <div class="form-group">
@@ -253,49 +405,6 @@
         </div>
       </div>
     </Teleport>
-
-    <!-- 分配審核者 Modal -->
-    <Teleport to="body">
-      <div v-if="showAssignModal" class="modal-overlay" @click="closeAssignModal">
-        <div class="modal-content" @click.stop>
-          <div class="modal-header">
-            <h2 class="modal-title">分配審核者</h2>
-            <button class="modal-close" @click="closeAssignModal">
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          <div class="modal-body">
-            <div class="form-group">
-              <label>選擇審核者</label>
-              <select v-model="selectedAssigneeId" class="form-select">
-                <option value="">請選擇...</option>
-                <option
-                  v-for="reviewer in reviewers"
-                  :key="reviewer.user_id"
-                  :value="reviewer.user_id"
-                >
-                  {{ reviewer.username || reviewer.email }} ({{ reviewer.role }})
-                </option>
-              </select>
-            </div>
-          </div>
-
-          <div class="modal-footer">
-            <button class="btn-cancel" @click="closeAssignModal">取消</button>
-            <button
-              class="btn-confirm"
-              @click="submitAssign"
-              :disabled="!selectedAssigneeId || submitting"
-            >
-              {{ submitting ? '處理中...' : '確認分配' }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
   </div>
 </template>
 
@@ -305,14 +414,15 @@ import { useRouter, useRoute } from 'vue-router'
 import {
   getApplications,
   reviewApplication,
-  assignApplication,
   type Application
 } from '@/api/applications'
+import { useAuthStore } from '@/stores/auth'
 import { formatDistanceToNow } from 'date-fns'
 import { zhTW } from 'date-fns/locale'
 
 const router = useRouter()
 const route = useRoute()
+const authStore = useAuthStore()
 
 // 狀態
 const loading = ref(false)
@@ -328,16 +438,9 @@ const pagination = ref({
 
 // Modal 狀態
 const showReviewModal = ref(false)
-const showAssignModal = ref(false)
 const selectedApplication = ref<Application | null>(null)
 const reviewAction = ref<'approve' | 'reject'>('approve')
 const reviewNotes = ref('')
-const selectedAssigneeId = ref<number | string>('')
-
-// 審核者列表 (TODO: 從 API 獲取)
-const reviewers = ref<any[]>([
-  { user_id: 1, username: 'Admin', email: 'admin@example.com', role: 'ADMIN' }
-])
 
 // 篩選標籤
 const filterTabs = [
@@ -453,13 +556,49 @@ const formatDate = (dateString?: string) => {
   }
 }
 
-// 權限檢查
-const canReview = (application: Application) => {
-  return application.status === 'PENDING' || application.status === 'UNDER_REVIEW'
+// 格式化日期(僅日期)
+const formatDateOnly = (dateString: string) => {
+  const date = new Date(dateString)
+  return date.toLocaleDateString('zh-TW', { 
+    year: 'numeric', 
+    month: '2-digit', 
+    day: '2-digit'
+  })
 }
 
-const canAssign = (application: Application) => {
-  return application.status === 'PENDING' || application.status === 'UNDER_REVIEW'
+// 物種中文轉換
+const getSpeciesText = (species?: string) => {
+  const map: Record<string, string> = {
+    'CAT': '貓',
+    'DOG': '狗'
+  }
+  return species ? map[species] || species : '-'
+}
+
+// 性別中文轉換
+const getSexText = (sex?: string) => {
+  const map: Record<string, string> = {
+    'MALE': '公',
+    'FEMALE': '母',
+    'UNKNOWN': '未知'
+  }
+  return sex ? map[sex] || sex : '-'
+}
+
+// 權限檢查 - 只有送養人可以審核
+const canReview = (application: Application) => {
+  // 檢查申請狀態
+  if (application.status !== 'PENDING' && application.status !== 'UNDER_REVIEW') {
+    return false
+  }
+  
+  // 檢查是否為動物的送養人(擁有者)
+  if (!application.animal || !authStore.user) {
+    return false
+  }
+  
+  // 只有動物擁有者可以審核申請
+  return application.animal.owner_id === authStore.user.user_id
 }
 
 // 查看申請詳情
@@ -503,41 +642,6 @@ const submitReview = async () => {
     } else {
       alert('操作失敗: ' + (error.response?.data?.message || error.message))
     }
-  } finally {
-    submitting.value = false
-  }
-}
-
-// 打開分配 Modal
-const openAssignModal = (application: Application) => {
-  selectedApplication.value = application
-  selectedAssigneeId.value = application.assignee_id || ''
-  showAssignModal.value = true
-}
-
-// 關閉分配 Modal
-const closeAssignModal = () => {
-  showAssignModal.value = false
-  selectedApplication.value = null
-  selectedAssigneeId.value = ''
-}
-
-// 提交分配
-const submitAssign = async () => {
-  if (!selectedApplication.value || !selectedAssigneeId.value) return
-  
-  submitting.value = true
-  try {
-    await assignApplication(
-      selectedApplication.value.application_id,
-      Number(selectedAssigneeId.value)
-    )
-    
-    alert('分配成功！')
-    closeAssignModal()
-    fetchApplications()
-  } catch (error: any) {
-    alert('分配失敗: ' + (error.response?.data?.message || error.message))
   } finally {
     submitting.value = false
   }
@@ -799,12 +903,14 @@ onMounted(() => {
   display: flex;
   gap: 1rem;
   margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .animal-image,
 .animal-image-placeholder {
-  width: 5rem;
-  height: 5rem;
+  width: 6rem;
+  height: 6rem;
   border-radius: 0.5rem;
   overflow: hidden;
   flex-shrink: 0;
@@ -824,11 +930,69 @@ onMounted(() => {
   color: #cbd5e0;
 }
 
+.animal-details {
+  flex: 1;
+}
+
 .animal-name {
   font-size: 1.125rem;
   font-weight: 600;
   color: #1a202c;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.animal-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.badge-species {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+.badge-breed {
+  background-color: #e9d5ff;
+  color: #6b21a8;
+}
+
+.badge-sex {
+  background-color: #fce7f3;
+  color: #9f1239;
+}
+
+.badge-color {
+  background-color: #f3f4f6;
+  color: #374151;
+}
+
+.badge-age {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+.animal-extra-info {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.813rem;
+  color: #718096;
+}
+
+.info-item {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 .animal-meta {
@@ -855,6 +1019,69 @@ onMounted(() => {
   font-size: 0.875rem;
   color: #4a5568;
   margin-bottom: 1rem;
+}
+
+/* 申請人詳細資訊 */
+.applicant-details {
+  background: #f7fafc;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.details-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #2d3748;
+  margin-bottom: 0.75rem;
+}
+
+.details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.detail-item.full-width {
+  grid-column: 1 / -1;
+}
+
+.detail-label {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #718096;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.detail-value {
+  font-size: 0.875rem;
+  color: #1a202c;
+  font-weight: 500;
+}
+
+.detail-text {
+  font-size: 0.875rem;
+  color: #2d3748;
+  line-height: 1.5;
+  padding: 0.5rem;
+  background: white;
+  border-radius: 0.25rem;
+  white-space: pre-wrap;
+  margin-top: 0.25rem;
 }
 
 /* 操作按鈕 */
@@ -1016,7 +1243,7 @@ onMounted(() => {
 .modal-content {
   background: white;
   border-radius: 0.5rem;
-  max-width: 500px;
+  max-width: 600px;
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
@@ -1050,13 +1277,66 @@ onMounted(() => {
 
 .review-summary {
   margin-bottom: 1rem;
-  padding: 1rem;
   background: #f7fafc;
   border-radius: 0.375rem;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.summary-section {
+  padding: 1rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.summary-section:last-child {
+  border-bottom: none;
+}
+
+.summary-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #2d3748;
+  margin-bottom: 0.75rem;
+}
+
+.summary-item {
+  margin-bottom: 0.75rem;
+  font-size: 0.875rem;
+}
+
+.summary-item:last-child {
+  margin-bottom: 0;
+}
+
+.summary-item strong {
+  color: #4a5568;
+  display: inline-block;
+  min-width: 100px;
+}
+
+.summary-text {
+  margin-top: 0.25rem;
+  padding: 0.5rem;
+  background: white;
+  border-radius: 0.25rem;
+  color: #2d3748;
+  white-space: pre-wrap;
+  line-height: 1.5;
 }
 
 .review-summary p {
   margin-bottom: 0.5rem;
+}
+
+.info-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: #EBF8FF;
+  border: 1px solid #BEE3F8;
+  border-radius: 0.375rem;
+  margin-bottom: 1rem;
 }
 
 .form-group {

@@ -333,3 +333,36 @@ def list_audit_logs():
         'audit_logs': logs_with_actor
     }), 200
 
+
+@admin_bp.route('/reviewers', methods=['GET'])
+@jwt_required()
+def get_reviewers():
+    """
+    取得所有可以審核申請的使用者 (ADMIN + SHELTER_MEMBER)
+    僅管理員和收容所會員可訪問
+    """
+    current_user_id = int(get_jwt_identity())
+    user = User.query.get(current_user_id)
+    
+    if not user or user.role not in [UserRole.ADMIN, UserRole.SHELTER_MEMBER]:
+        abort(403, message='僅管理員和收容所會員可訪問')
+    
+    # 查詢所有管理員和收容所會員 (未刪除且未被封禁)
+    reviewers = User.query.filter(
+        User.role.in_([UserRole.ADMIN, UserRole.SHELTER_MEMBER]),
+        User.deleted_at == None,
+        db.or_(User.locked_until == None, User.locked_until < datetime.utcnow())
+    ).order_by(User.role.desc(), User.username).all()
+    
+    return jsonify({
+        'reviewers': [
+            {
+                'user_id': r.user_id,
+                'username': r.username,
+                'email': r.email,
+                'role': r.role.value,
+                'shelter_id': r.primary_shelter_id if r.role == UserRole.SHELTER_MEMBER else None
+            } for r in reviewers
+        ]
+    }), 200
+

@@ -8,13 +8,18 @@ from typing import Dict, Any
 
 from app.celery import celery
 from app import db
-from app.models import Job, JobStatus, Animal, AnimalStatus, Shelter
+from app.models import Job, JobStatus, Animal, AnimalStatus, Shelter, MedicalRecord, RecordType, AnimalImage
 
 
 @celery.task(bind=True, max_retries=3)
 def process_animal_batch_import(self, job_id: int) -> Dict[str, Any]:
     """
-    批次匯入動物資料
+    批次匯入動物資料 (支援多檔案架構)
+    
+    檔案:
+    - animal_csv: 動物基本資訊 (必填)
+    - medical_csv: 醫療記錄 (選填,多筆)
+    - photos: 動物照片 (選填,檔名格式: {animal_code}_{order}.jpg)
     
     Args:
         job_id: Job ID
@@ -34,7 +39,9 @@ def process_animal_batch_import(self, job_id: int) -> Dict[str, Any]:
     try:
         # 從 payload 取得參數
         shelter_id = job.payload.get('shelter_id')
-        file_url = job.payload.get('file_url')
+        animal_csv_content = job.payload.get('animal_csv_content')
+        medical_csv_content = job.payload.get('medical_csv_content')
+        photos_data = job.payload.get('photos', [])
         options = job.payload.get('options', {})
         
         # 驗證 shelter 存在
@@ -42,92 +49,230 @@ def process_animal_batch_import(self, job_id: int) -> Dict[str, Any]:
         if not shelter:
             raise ValueError(f'Shelter {shelter_id} not found')
         
-        # TODO: 從 MinIO 下載 CSV 檔案
-        # file_url 格式: "animals-import/filename.csv"
-        # file_content = minio_service.get_file_content(file_url)
-        
-        # 暫時使用假數據進行測試 (實際應從 MinIO 讀取)
-        raise NotImplementedError('MinIO service not yet implemented. Please upload CSV directly via API.')
-        
-        # 解析 CSV
-        csv_data = file_content.decode('utf-8')
-        csv_reader = csv.DictReader(io.StringIO(csv_data))
+        if not animal_csv_content:
+            raise ValueError('Missing animal_csv_content in job payload')
         
         # 統計
         stats = {
-            'total': 0,
-            'success': 0,
-            'failed': 0,
+            'total_animals': 0,
+            'success_animals': 0,
+            'failed_animals': 0,
+            'total_medical_records': 0,
+            'success_medical_records': 0,
+            'total_photos': 0,
+            'success_photos': 0,
             'errors': []
         }
         
-        # 批次處理
-        batch_size = options.get('batch_size', 100)
-        animals_to_add = []
+        # === 第一階段: 解析動物 CSV 並建立 animal_code → animal_id 映射 ===
+        animal_code_map = {}  # {animal_code: animal_id}
+        csv_reader = csv.DictReader(io.StringIO(animal_csv_content))
         
-        for row_num, row in enumerate(csv_reader, start=2):  # 從第2行開始 (第1行是標題)
-            stats['total'] += 1
+        for row_num, row in enumerate(csv_reader, start=2):
+            stats['total_animals'] += 1
             
             try:
                 # 驗證必填欄位
-                required_fields = ['name', 'species', 'breed', 'age', 'gender']
-                missing_fields = [f for f in required_fields if not row.get(f)]
+                required_fields = ['animal_code', 'name', 'species', 'breed', 'sex', 'dob', 'color', 'description']
+                missing_fields = [f for f in required_fields if not row.get(f) or not row[f].strip()]
                 
                 if missing_fields:
                     raise ValueError(f'Missing required fields: {", ".join(missing_fields)}')
+                
+                animal_code = row['animal_code'].strip()
+                
+                # 檢查重複的 animal_code
+                if animal_code in animal_code_map:
+                    raise ValueError(f'Duplicate animal_code: {animal_code}')
+                
+                # 驗證 species 值
+                species = row['species'].strip().upper()
+                if species not in ['CAT', 'DOG']:
+                    raise ValueError(f'Invalid species: {species}. Must be CAT or DOG')
+                
+                # 驗證 sex 值
+                sex = row['sex'].strip().upper()
+                if sex not in ['MALE', 'FEMALE', 'UNKNOWN']:
+                    raise ValueError(f'Invalid sex: {sex}. Must be MALE, FEMALE, or UNKNOWN')
+                
+                # 處理出生日期
+                try:
+                    from datetime import datetime as dt
+                    dob = dt.strptime(row['dob'].strip(), '%Y-%m-%d').date()
+                except ValueError:
+                    raise ValueError(f'Invalid date format for dob: {row["dob"]}. Use YYYY-MM-DD')
                 
                 # 建立動物物件
                 animal = Animal(
                     shelter_id=shelter_id,
                     name=row['name'].strip(),
-                    species=row['species'].strip(),
+                    species=species,
                     breed=row['breed'].strip(),
-                    age=int(row['age']),
-                    gender=row['gender'].strip(),
-                    color=row.get('color', '').strip() or None,
-                    size=row.get('size', '').strip() or None,
-                    description=row.get('description', '').strip() or None,
-                    health_status=row.get('health_status', '健康').strip(),
-                    vaccination_status=row.get('vaccination_status', '').strip() or None,
-                    sterilization_status=row.get('sterilization_status', '').strip() or None,
-                    status=AnimalStatus.AVAILABLE,  # 預設為可領養
-                    is_active=True
+                    sex=sex,
+                    color=row['color'].strip(),
+                    dob=dob,
+                    description=row['description'].strip(),
+                    status=AnimalStatus.DRAFT,
+                    created_by=job.created_by,
+                    created_at=datetime.utcnow(),
+                    updated_at=datetime.utcnow()
                 )
                 
-                animals_to_add.append(animal)
-                stats['success'] += 1
+                # 添加並 flush 以獲取 animal_id
+                db.session.add(animal)
+                db.session.flush()
                 
-                # 批次新增
-                if len(animals_to_add) >= batch_size:
-                    db.session.bulk_save_objects(animals_to_add)
-                    db.session.commit()
-                    animals_to_add = []
-                    
+                # 記錄映射
+                animal_code_map[animal_code] = animal.animal_id
+                stats['success_animals'] += 1
+                
             except Exception as e:
-                stats['failed'] += 1
+                stats['failed_animals'] += 1
                 stats['errors'].append({
                     'row': row_num,
+                    'file': 'animal_csv',
                     'data': row,
                     'error': str(e)
                 })
-                
-                # 如果錯誤太多，提前終止
-                if stats['failed'] > 100:
-                    raise ValueError('Too many errors, aborting import')
         
-        # 新增剩餘的動物
-        if animals_to_add:
-            db.session.bulk_save_objects(animals_to_add)
+        # Commit 動物資料
+        db.session.commit()
+        
+        # === 第二階段: 解析醫療記錄 CSV (選填) ===
+        if medical_csv_content:
+            medical_csv_reader = csv.DictReader(io.StringIO(medical_csv_content))
+            
+            for row_num, row in enumerate(medical_csv_reader, start=2):
+                stats['total_medical_records'] += 1
+                
+                try:
+                    # 驗證必填欄位
+                    required_fields = ['animal_code', 'record_type', 'date']
+                    missing_fields = [f for f in required_fields if not row.get(f) or not row[f].strip()]
+                    
+                    if missing_fields:
+                        raise ValueError(f'Missing required fields: {", ".join(missing_fields)}')
+                    
+                    animal_code = row['animal_code'].strip()
+                    
+                    # 檢查 animal_code 是否存在
+                    if animal_code not in animal_code_map:
+                        raise ValueError(f'Unknown animal_code: {animal_code}. Animal not found in animal_csv')
+                    
+                    animal_id = animal_code_map[animal_code]
+                    
+                    # 驗證 record_type
+                    record_type = row['record_type'].strip().upper()
+                    if record_type not in ['TREATMENT', 'CHECKUP', 'VACCINE', 'SURGERY', 'OTHER']:
+                        raise ValueError(f'Invalid record_type: {record_type}')
+                    
+                    # 處理醫療日期
+                    try:
+                        from datetime import datetime as dt
+                        medical_date = dt.strptime(row['date'].strip(), '%Y-%m-%d').date()
+                    except ValueError:
+                        raise ValueError(f'Invalid date format: {row["date"]}. Use YYYY-MM-DD')
+                    
+                    # 創建醫療記錄
+                    medical_record = MedicalRecord(
+                        animal_id=animal_id,
+                        record_type=RecordType[record_type],
+                        date=medical_date,
+                        provider=row.get('provider', '').strip() or None,
+                        details=row.get('details', '').strip() or None,
+                        verified=False,
+                        created_by=job.created_by,
+                        created_at=datetime.utcnow(),
+                        updated_at=datetime.utcnow()
+                    )
+                    
+                    db.session.add(medical_record)
+                    stats['success_medical_records'] += 1
+                    
+                except Exception as e:
+                    stats['errors'].append({
+                        'row': row_num,
+                        'file': 'medical_csv',
+                        'data': row,
+                        'error': str(e)
+                    })
+            
+            # Commit 醫療記錄
+            db.session.commit()
+        
+        # === 第三階段: 處理照片 (選填) ===
+        if photos_data:
+            import base64
+            import re
+            
+            # 解析檔名格式: {animal_code}_{order}.{ext}
+            filename_pattern = re.compile(r'^(.+?)_(\d+)\.[a-zA-Z]+$')
+            
+            for photo in photos_data:
+                stats['total_photos'] += 1
+                
+                try:
+                    filename = photo['filename']
+                    match = filename_pattern.match(filename)
+                    
+                    if not match:
+                        raise ValueError(f'Invalid filename format: {filename}. Expected: {{animal_code}}_{{order}}.{{ext}}')
+                    
+                    animal_code = match.group(1)
+                    order = int(match.group(2))
+                    
+                    # 檢查 animal_code 是否存在
+                    if animal_code not in animal_code_map:
+                        raise ValueError(f'Unknown animal_code in filename: {animal_code}')
+                    
+                    animal_id = animal_code_map[animal_code]
+                    
+                    # TODO: 上傳照片到 MinIO
+                    # 目前暫存 base64 在資料庫 (未來改用 MinIO URL)
+                    photo_binary = base64.b64decode(photo['data'])
+                    
+                    # 臨時方案: 將照片資料存入 AnimalImage 的 image_url (實際應上傳到 MinIO)
+                    # 未來改為: image_url = minio_service.upload(photo_binary, filename)
+                    image_url = f"data:{photo['content_type']};base64,{photo['data'][:100]}..."  # 暫存前100字元
+                    
+                    animal_image = AnimalImage(
+                        animal_id=animal_id,
+                        image_url=image_url,  # 未來改為 MinIO URL
+                        display_order=order,
+                        created_at=datetime.utcnow()
+                    )
+                    
+                    db.session.add(animal_image)
+                    stats['success_photos'] += 1
+                    
+                except Exception as e:
+                    stats['errors'].append({
+                        'file': 'photo',
+                        'filename': photo.get('filename', 'unknown'),
+                        'error': str(e)
+                    })
+            
+            # Commit 照片記錄
             db.session.commit()
         
         # 更新 job 狀態為成功
         job.status = JobStatus.SUCCEEDED
         job.completed_at = datetime.utcnow()
         job.result_summary = {
-            'total_rows': stats['total'],
-            'success_count': stats['success'],
-            'failed_count': stats['failed'],
-            'error_samples': stats['errors'][:10]  # 只保存前10個錯誤
+            'animals': {
+                'total': stats['total_animals'],
+                'success': stats['success_animals'],
+                'failed': stats['failed_animals']
+            },
+            'medical_records': {
+                'total': stats['total_medical_records'],
+                'success': stats['success_medical_records']
+            },
+            'photos': {
+                'total': stats['total_photos'],
+                'success': stats['success_photos']
+            },
+            'error_samples': stats['errors'][:20]  # 保存前20個錯誤
         }
         db.session.commit()
         
@@ -143,9 +288,11 @@ def process_animal_batch_import(self, job_id: int) -> Dict[str, Any]:
         }
         db.session.commit()
         
+        # Rollback 所有變更
+        db.session.rollback()
+        
         # 重試機制
         if self.request.retries < self.max_retries:
-            # 指數退避: 60秒, 120秒, 240秒
             countdown = 60 * (2 ** self.request.retries)
             raise self.retry(exc=exc, countdown=countdown)
         

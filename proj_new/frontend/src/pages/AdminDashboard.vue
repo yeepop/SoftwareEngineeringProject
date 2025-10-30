@@ -175,30 +175,74 @@
 
             <!-- 資訊 -->
             <div class="flex-1">
-              <div class="flex items-start justify-between mb-2">
+              <div class="flex items-start justify-between mb-3">
                 <div>
-                  <h3 class="text-xl font-bold text-gray-900">{{ animal.name || '未命名' }}</h3>
-                  <p class="text-sm text-gray-600">
-                    {{ getSpeciesText(animal.species || '') }} 
-                    <span v-if="animal.breed">· {{ animal.breed }}</span>
-                    <span v-if="animal.sex">· {{ getSexText(animal.sex) }}</span>
-                  </p>
+                  <h3 class="text-xl font-bold text-gray-900 mb-1">{{ animal.name || '未命名' }}</h3>
+                  <div class="flex flex-wrap items-center gap-2 text-sm">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 font-medium">
+                      {{ getSpeciesText(animal.species || '') }}
+                    </span>
+                    <span v-if="animal.breed" class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800 font-medium">
+                      {{ animal.breed }}
+                    </span>
+                    <span v-if="animal.sex" class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-pink-100 text-pink-800 font-medium">
+                      {{ getSexText(animal.sex) }}
+                    </span>
+                    <span v-if="animal.color" class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-800 font-medium">
+                      {{ animal.color }}
+                    </span>
+                    <span v-if="animal.age !== null && animal.age !== undefined" class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-green-100 text-green-800 font-medium">
+                      {{ animal.age }} 歲
+                    </span>
+                  </div>
                 </div>
                 <span
-                  class="px-3 py-1 text-sm font-semibold rounded-full"
+                  class="px-3 py-1 text-sm font-semibold rounded-full whitespace-nowrap"
                   :class="getStatusClass(animal.status)"
                 >
                   {{ getStatusText(animal.status) }}
                 </span>
               </div>
 
-              <p v-if="animal.description" class="text-gray-700 mb-4 line-clamp-2">
+              <p v-if="animal.description" class="text-gray-700 mb-3 line-clamp-2">
                 {{ animal.description }}
               </p>
 
-              <div class="flex items-center gap-4 text-sm text-gray-600 mb-4">
-                <span>ID: {{ animal.animal_id }}</span>
-                <span>建立時間: {{ formatDate(animal.created_at) }}</span>
+              <!-- 詳細資訊網格 -->
+              <div class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm mb-4 bg-gray-50 p-3 rounded-lg">
+                <div class="flex items-center">
+                  <span class="text-gray-500 font-medium w-20">動物 ID:</span>
+                  <span class="text-gray-900">{{ animal.animal_id }}</span>
+                </div>
+                <div class="flex items-center">
+                  <span class="text-gray-500 font-medium w-20">出生日期:</span>
+                  <span class="text-gray-900">{{ animal.dob ? formatDateOnly(animal.dob) : '未提供' }}</span>
+                </div>
+                <div class="flex items-center">
+                  <span class="text-gray-500 font-medium w-20">送養者:</span>
+                  <span class="text-gray-900">ID {{ animal.owner_id || animal.created_by }}</span>
+                </div>
+                <div class="flex items-center">
+                  <span class="text-gray-500 font-medium w-20">收容所:</span>
+                  <span class="text-gray-900">{{ animal.shelter_id ? `ID ${animal.shelter_id}` : '個人送養' }}</span>
+                </div>
+                <div class="flex items-center">
+                  <span class="text-gray-500 font-medium w-20">建立時間:</span>
+                  <span class="text-gray-900">{{ formatDate(animal.created_at) }}</span>
+                </div>
+                <div class="flex items-center">
+                  <span class="text-gray-500 font-medium w-20">更新時間:</span>
+                  <span class="text-gray-900">{{ formatDate(animal.updated_at) }}</span>
+                </div>
+                <div v-if="animal.rejection_reason" class="col-span-2">
+                  <span class="text-red-500 font-medium">拒絕原因:</span>
+                  <span class="text-red-700 ml-2">{{ animal.rejection_reason }}</span>
+                </div>
+                <div v-if="animal.has_pending_application" class="col-span-2">
+                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-yellow-100 text-yellow-800 font-medium text-xs">
+                    ⚠️ 有待審核的領養申請
+                  </span>
+                </div>
               </div>
 
               <!-- 操作按鈕 -->
@@ -210,6 +254,15 @@
                   :disabled="isProcessing"
                 >
                   ✓ 核准發布
+                </button>
+
+                <button
+                  v-if="animal.status === 'SUBMITTED'"
+                  @click="openRejectModal(animal.animal_id)"
+                  class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-medium"
+                  :disabled="isProcessing"
+                >
+                  ✗ 拒絕
                 </button>
 
                 <button
@@ -262,13 +315,60 @@
         </button>
       </div>
     </div>
+
+    <!-- 拒絕原因 Modal (問題4、問題5) -->
+    <div v-if="showRejectModal" class="modal-overlay" @click.self="closeRejectModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title">拒絕批准動物上架</h2>
+          <button type="button" @click="closeRejectModal" class="modal-close">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div class="modal-body">
+          <div class="mb-4">
+            <label for="rejection-reason" class="form-label required">拒絕原因</label>
+            <textarea 
+              id="rejection-reason" 
+              v-model="rejectionReason" 
+              class="form-textarea w-full" 
+              rows="5"
+              placeholder="請詳細說明拒絕的原因,這將通知給送養者..."
+              required
+            ></textarea>
+            <p class="text-sm text-gray-500 mt-1">送養者將收到此訊息,請提供建設性的反饋</p>
+          </div>
+
+          <div class="alert alert-warning mb-4">
+            <p class="text-sm">
+              <strong>注意:</strong> 拒絕後動物狀態將改為草稿,送養者需修正後重新提交。
+            </p>
+          </div>
+
+          <div class="form-actions flex justify-end gap-2">
+            <button type="button" @click="closeRejectModal" class="btn-secondary">取消</button>
+            <button 
+              type="button" 
+              @click="confirmReject" 
+              class="btn-reject"
+              :disabled="isProcessing || !rejectionReason.trim()"
+            >
+              {{ isProcessing ? '處理中...' : '確認拒絕' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { getAnimals, publishAnimal as publishAnimalAPI, retireAnimal as retireAnimalAPI, type Animal } from '@/api/animals'
+import { getAnimals, publishAnimal as publishAnimalAPI, retireAnimal as retireAnimalAPI, rejectAnimal as rejectAnimalAPI, type Animal } from '@/api/animals'
 
 const router = useRouter()
 
@@ -282,6 +382,11 @@ const stats = ref({
   published: 0,
   retired: 0
 })
+
+// 拒絕 Modal 狀態
+const showRejectModal = ref(false)
+const rejectingAnimalId = ref<number | null>(null)
+const rejectionReason = ref('')
 
 const pagination = ref({
   page: 1,
@@ -355,6 +460,42 @@ async function publishAnimal(animalId: number) {
   } catch (error: any) {
     console.error('Publish error:', error)
     alert('發布失敗: ' + (error.response?.data?.message || error.message))
+  } finally {
+    isProcessing.value = false
+  }
+}
+
+// 不核准動物 - 開啟拒絕原因 Modal (問題4、問題5)
+function openRejectModal(animalId: number) {
+  rejectingAnimalId.value = animalId
+  rejectionReason.value = ''
+  showRejectModal.value = true
+}
+
+function closeRejectModal() {
+  showRejectModal.value = false
+  rejectingAnimalId.value = null
+  rejectionReason.value = ''
+}
+
+async function confirmReject() {
+  if (!rejectingAnimalId.value) return
+  
+  if (!rejectionReason.value.trim()) {
+    alert('請輸入拒絕原因')
+    return
+  }
+  
+  isProcessing.value = true
+  try {
+    await rejectAnimalAPI(rejectingAnimalId.value, rejectionReason.value.trim())
+    alert('已拒絕批准,並已通知送養者')
+    closeRejectModal()
+    await loadAnimals()
+    await loadStats()
+  } catch (error: any) {
+    console.error('Reject error:', error)
+    alert('拒絕失敗: ' + (error.response?.data?.message || error.message))
   } finally {
     isProcessing.value = false
   }
@@ -438,6 +579,15 @@ function formatDate(dateString: string): string {
   })
 }
 
+function formatDateOnly(dateString: string): string {
+  const date = new Date(dateString)
+  return date.toLocaleDateString('zh-TW', { 
+    year: 'numeric', 
+    month: '2-digit', 
+    day: '2-digit'
+  })
+}
+
 function getCurrentStatusLabel(): string {
   const option = statusOptions.find(opt => opt.value === currentStatus.value)
   return option?.label || ''
@@ -456,6 +606,139 @@ onMounted(() => {
   line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* Modal 樣式 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.modal-content {
+  background-color: white;
+  border-radius: 0.5rem;
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.modal-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.modal-close {
+  padding: 0.5rem;
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+  color: #6b7280;
+  transition: color 0.2s;
+}
+
+.modal-close:hover {
+  color: #111827;
+}
+
+.modal-body {
+  padding: 1.5rem;
+}
+
+.form-label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  color: #374151;
+}
+
+.form-label.required::after {
+  content: ' *';
+  color: #ef4444;
+}
+
+.form-textarea {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  font-size: 1rem;
+  transition: border-color 0.2s;
+  resize: vertical;
+}
+
+.form-textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.alert {
+  padding: 1rem;
+  border-radius: 0.375rem;
+}
+
+.alert-warning {
+  background-color: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+}
+
+.form-actions {
+  margin-top: 1.5rem;
+}
+
+.btn-secondary {
+  padding: 0.625rem 1.5rem;
+  background-color: white;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: #f3f4f6;
+}
+
+.btn-reject {
+  padding: 0.625rem 1.5rem;
+  background-color: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 0.375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn-reject:hover:not(:disabled) {
+  background-color: #b91c1c;
+}
+
+.btn-reject:disabled {
+  background-color: #9ca3af;
+  cursor: not-allowed;
 }
 </style>
 

@@ -115,19 +115,19 @@ const routes: RouteRecordRaw[] = [
     path: '/admin/applications',
     name: 'ApplicationReview',
     component: ApplicationReview,
-    meta: { title: '申請審核', requiresAuth: true, requiresRole: ['ADMIN', 'SHELTER_MEMBER'] }
+    meta: { title: '申請審核', requiresAuth: true, requiresRole: ['ADMIN', 'SHELTER_MEMBER', 'GENERAL_MEMBER'] }
   },
   {
     path: '/medical-records',
     name: 'MedicalRecords',
     component: MedicalRecords,
-    meta: { title: '醫療記錄', requiresAuth: true, requiresRole: ['ADMIN', 'SHELTER_MEMBER'] }
+    meta: { title: '醫療記錄', requiresAuth: true, requiresRole: ['ADMIN', 'SHELTER_MEMBER', 'GENERAL_MEMBER'] }
   },
   {
     path: '/jobs',
     name: 'Jobs',
     component: Jobs,
-    meta: { title: '任務狀態', requiresAuth: true, requiresRole: ['ADMIN', 'SHELTER_MEMBER'] }
+    meta: { title: '任務狀態', requiresAuth: true, requiresRole: 'ADMIN' }
   },
   {
     path: '/shelters',

@@ -57,13 +57,52 @@
 
         <!-- 內容 -->
         <div class="card-content">
-          <h3 class="card-title">{{ animal.name }}</h3>
-          <div class="card-info">
-            <span>{{ getSpeciesText(animal.species || 'UNKNOWN') }}</span>
-            <span v-if="animal.breed">{{ animal.breed }}</span>
-            <span>{{ getSexText(animal.sex || 'UNKNOWN') }}</span>
+          <h3 class="card-title">{{ animal.name || '未命名' }}</h3>
+          
+          <!-- 基本資訊標籤 -->
+          <div class="info-badges">
+            <span class="badge badge-species">
+              {{ getSpeciesText(animal.species || 'UNKNOWN') }}
+            </span>
+            <span v-if="animal.breed" class="badge badge-breed">
+              {{ animal.breed }}
+            </span>
+            <span class="badge badge-sex">
+              {{ getSexText(animal.sex || 'UNKNOWN') }}
+            </span>
+            <span v-if="animal.color" class="badge badge-color">
+              {{ animal.color }}
+            </span>
+            <span v-if="animal.age !== null && animal.age !== undefined" class="badge badge-age">
+              {{ animal.age }} 歲
+            </span>
           </div>
-          <p class="card-description">{{ animal.description }}</p>
+
+          <p v-if="animal.description" class="card-description">{{ animal.description }}</p>
+          
+          <!-- 詳細資訊 -->
+          <div class="detail-info">
+            <div class="detail-row">
+              <span class="detail-label">動物 ID:</span>
+              <span class="detail-value">{{ animal.animal_id }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">出生日期:</span>
+              <span class="detail-value">{{ animal.dob ? formatDateOnly(animal.dob) : '未提供' }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">建立時間:</span>
+              <span class="detail-value">{{ formatDate(animal.created_at) }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">更新時間:</span>
+              <span class="detail-value">{{ formatDate(animal.updated_at) }}</span>
+            </div>
+            <div v-if="animal.rejection_reason" class="detail-row rejection-row">
+              <span class="detail-label">拒絕原因:</span>
+              <span class="detail-value rejection-reason">{{ animal.rejection_reason }}</span>
+            </div>
+          </div>
           
           <!-- 統計資訊 -->
           <div class="card-stats">
@@ -75,6 +114,20 @@
                   d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
               </svg>
               <span>{{ (animal as any).view_count || 0 }} 次瀏覽</span>
+            </div>
+            <div v-if="animal.images && animal.images.length > 0" class="stat-item">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <span>{{ animal.images.length }} 張照片</span>
+            </div>
+            <div v-if="animal.has_pending_application" class="stat-item stat-warning">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <span>有待審核申請</span>
             </div>
           </div>
 
@@ -256,6 +309,26 @@ function getSpeciesText(species: string): string {
 
 function getSexText(sex: string): string {
   return sex === 'MALE' ? '公' : sex === 'FEMALE' ? '母' : sex
+}
+
+function formatDate(dateString: string): string {
+  const date = new Date(dateString)
+  return date.toLocaleDateString('zh-TW', { 
+    year: 'numeric', 
+    month: '2-digit', 
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+function formatDateOnly(dateString: string): string {
+  const date = new Date(dateString)
+  return date.toLocaleDateString('zh-TW', { 
+    year: 'numeric', 
+    month: '2-digit', 
+    day: '2-digit'
+  })
 }
 
 function editAnimal(id: number) {
@@ -474,7 +547,97 @@ async function confirmDeleteImage(imageId: number) {
   font-size: 1.25rem;
   font-weight: 600;
   color: #111827;
+  margin-bottom: 0.75rem;
+}
+
+.info-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.badge-species {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+.badge-breed {
+  background-color: #e9d5ff;
+  color: #6b21a8;
+}
+
+.badge-sex {
+  background-color: #fce7f3;
+  color: #9f1239;
+}
+
+.badge-color {
+  background-color: #f3f4f6;
+  color: #374151;
+}
+
+.badge-age {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+.detail-info {
+  background-color: #f9fafb;
+  border-radius: 0.375rem;
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.813rem;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.25rem 0;
+}
+
+.detail-row:not(:last-child) {
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 0.5rem;
   margin-bottom: 0.5rem;
+}
+
+.detail-label {
+  font-weight: 500;
+  color: #6b7280;
+  min-width: 5rem;
+}
+
+.detail-value {
+  color: #111827;
+  text-align: right;
+  flex: 1;
+}
+
+.rejection-row {
+  background-color: #fef2f2;
+  border-radius: 0.25rem;
+  padding: 0.5rem;
+  margin: 0.5rem -0.75rem -0.75rem -0.75rem;
+  border-top: 1px solid #fecaca;
+}
+
+.rejection-row .detail-label {
+  color: #991b1b;
+}
+
+.rejection-reason {
+  color: #dc2626;
+  font-weight: 500;
 }
 
 .card-info {
@@ -504,6 +667,7 @@ async function confirmDeleteImage(imageId: number) {
 
 .card-stats {
   display: flex;
+  flex-wrap: wrap;
   gap: 1rem;
   padding: 0.75rem 0;
   border-top: 1px solid #e5e7eb;
@@ -514,9 +678,18 @@ async function confirmDeleteImage(imageId: number) {
 .stat-item {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
-  font-size: 0.875rem;
+  gap: 0.375rem;
+  font-size: 0.813rem;
   color: #6b7280;
+}
+
+.stat-warning {
+  color: #d97706;
+  font-weight: 500;
+}
+
+.stat-warning svg {
+  color: #f59e0b;
 }
 
 .card-actions {
@@ -578,6 +751,15 @@ async function confirmDeleteImage(imageId: number) {
 
 .btn-secondary:hover {
   background-color: #059669;
+}
+
+.btn-medical {
+  background-color: #8b5cf6 !important;
+  border-color: #8b5cf6 !important;
+}
+
+.btn-medical:hover {
+  background-color: #7c3aed !important;
 }
 
 .btn-danger {

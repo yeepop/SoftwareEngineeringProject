@@ -172,6 +172,7 @@ async function fetchApplications() {
     const filters: any = {
       page: currentPage.value,
       per_page: perPage,
+      applicant_id: authStore.user?.user_id  // 明確傳遞當前用戶 ID,確保只顯示自己的申請
     }
     
     if (currentStatus.value) {

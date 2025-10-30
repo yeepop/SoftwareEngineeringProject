@@ -21,13 +21,18 @@ export interface Animal {
   name?: string
   species?: 'CAT' | 'DOG'
   breed?: string
+  color?: string
   sex?: 'MALE' | 'FEMALE' | 'UNKNOWN'
   dob?: string
+  age?: number
   description?: string
-  status: 'DRAFT' | 'SUBMITTED' | 'PUBLISHED' | 'RETIRED'
+  status: 'DRAFT' | 'SUBMITTED' | 'PUBLISHED' | 'ADOPTED' | 'RETIRED'
   shelter_id?: number
   owner_id?: number
   medical_summary?: string
+  rejection_reason?: string
+  rejected_at?: string
+  rejected_by?: number
   created_by: number
   created_at: string
   updated_at: string
@@ -42,6 +47,7 @@ export interface Animal {
     order: number
   }>
   featured?: boolean
+  has_pending_application?: boolean
 }
 
 export interface AnimalsResponse {
@@ -105,6 +111,17 @@ export async function publishAnimal(id: number) {
  */
 export async function retireAnimal(id: number) {
   const response = await api.post<{ message: string; animal: Animal }>(`/animals/${id}/retire`)
+  return response.data
+}
+
+/**
+ * 拒絕批准動物上架 (問題4、問題5)
+ * SUBMITTED -> DRAFT,並記錄拒絕原因
+ */
+export async function rejectAnimal(id: number, rejectionReason: string) {
+  const response = await api.post<{ message: string; animal: Animal }>(`/animals/${id}/reject`, {
+    rejection_reason: rejectionReason
+  })
   return response.data
 }
 

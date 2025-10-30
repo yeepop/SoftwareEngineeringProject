@@ -98,3 +98,23 @@ export async function requestAccountDeletion(userId: number, reason?: string): P
   const response = await client.post(`/users/${userId}/data/delete`, { reason })
   return response.data
 }
+
+/**
+ * 審核者資料
+ */
+export interface Reviewer {
+  user_id: number
+  username: string
+  email: string
+  role: 'ADMIN' | 'SHELTER_MEMBER'
+  shelter_id?: number | null
+}
+
+/**
+ * 取得所有審核者列表 (管理員 + 收容所會員)
+ * @returns 審核者列表
+ */
+export async function getReviewers(): Promise<Reviewer[]> {
+  const response = await client.get('/admin/reviewers')
+  return response.data.reviewers
+}

@@ -36,6 +36,7 @@ class Animal(db.Model):
     name = db.Column(db.String(200), nullable=True)
     species = db.Column(db.Enum(Species), nullable=True)
     breed = db.Column(db.String(200), nullable=True)
+    color = db.Column(db.String(100), nullable=True)
     sex = db.Column(db.Enum(Sex), nullable=True)
     dob = db.Column(db.Date, nullable=True)
     description = db.Column(db.Text, nullable=True)
@@ -43,6 +44,12 @@ class Animal(db.Model):
     shelter_id = db.Column(db.BigInteger, db.ForeignKey('shelters.shelter_id'), nullable=True)
     owner_id = db.Column(db.BigInteger, db.ForeignKey('users.user_id'), nullable=True)
     medical_summary = db.Column(db.Text, nullable=True)
+    
+    # 拒絕批准相關欄位 (問題5)
+    rejection_reason = db.Column(db.Text, nullable=True)
+    rejected_at = db.Column(db.DateTime(6), nullable=True)
+    rejected_by = db.Column(db.BigInteger, db.ForeignKey('users.user_id'), nullable=True)
+    
     created_by = db.Column(db.BigInteger, db.ForeignKey('users.user_id'), nullable=False)
     created_at = db.Column(db.DateTime(6), default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime(6), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -52,6 +59,7 @@ class Animal(db.Model):
     shelter = db.relationship('Shelter', back_populates='animals')
     owner = db.relationship('User', foreign_keys=[owner_id], back_populates='animals')
     creator = db.relationship('User', foreign_keys=[created_by])
+    rejecter = db.relationship('User', foreign_keys=[rejected_by])
     images = db.relationship('AnimalImage', back_populates='animal', cascade='all, delete-orphan')
     applications = db.relationship('Application', back_populates='animal')
     medical_records = db.relationship('MedicalRecord', back_populates='animal')
@@ -70,6 +78,17 @@ class Animal(db.Model):
             return age_years
         return None
     
+    def has_pending_application(self):
+        """檢查是否有待審核的申請"""
+        from app.models.application import Application, ApplicationStatus
+        pending_app = Application.query.filter_by(
+            animal_id=self.animal_id,
+            deleted_at=None
+        ).filter(
+            Application.status.in_([ApplicationStatus.PENDING, ApplicationStatus.UNDER_REVIEW])
+        ).first()
+        return pending_app is not None
+    
     def to_dict(self, include_relations=False):
         """轉換為字典"""
         data = {
@@ -77,6 +96,7 @@ class Animal(db.Model):
             'name': self.name,
             'species': self.species.value if self.species else None,
             'breed': self.breed,
+            'color': self.color,
             'sex': self.sex.value if self.sex else None,
             'dob': self.dob.isoformat() if self.dob else None,
             'age': self.age,
@@ -85,9 +105,13 @@ class Animal(db.Model):
             'shelter_id': self.shelter_id,
             'owner_id': self.owner_id,
             'medical_summary': self.medical_summary,
+            'rejection_reason': self.rejection_reason,
+            'rejected_at': self.rejected_at.isoformat() if self.rejected_at else None,
+            'rejected_by': self.rejected_by,
             'created_by': self.created_by,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'has_pending_application': self.has_pending_application(),
         }
         
         if include_relations:

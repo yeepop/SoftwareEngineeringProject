@@ -15,6 +15,14 @@ export interface Application {
   assignee_id?: number
   version: number
   attachments?: any
+  // 申請人詳細資料
+  contact_phone?: string
+  contact_address?: string
+  occupation?: string
+  housing_type?: string
+  has_experience?: boolean
+  reason?: string
+  notes?: string
   created_at: string
   updated_at: string
   applicant?: any
@@ -42,6 +50,14 @@ export interface CreateApplicationData {
   animal_id: number
   type?: 'ADOPTION' | 'REHOME'
   attachments?: any
+  // 申請人詳細資料
+  contact_phone?: string
+  contact_address?: string
+  occupation?: string
+  housing_type?: string
+  has_experience?: boolean
+  reason?: string
+  notes?: string
 }
 
 export interface ReviewApplicationData {
